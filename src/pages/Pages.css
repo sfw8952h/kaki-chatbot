@@ -1,3 +1,4 @@
+/* shared styles for all static pages */
 .page-panel {
   width: min(960px, 92vw);
   margin: 0 auto;
@@ -231,6 +232,26 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* auth form status styles */
+.auth-status {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+}
+
+.auth-status.success {
+  background: #e7f5ec;
+  color: #0a6c51;
+  border: 1px solid #b7e4c9;
+}
+
+.auth-status.error {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecdd3;
 }
 
 .auth-form .primary-btn {

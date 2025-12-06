@@ -1,3 +1,4 @@
+// order tracking page showing live delivery status
 import "./Pages.css"
 
 const tracking = [

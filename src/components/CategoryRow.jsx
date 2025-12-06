@@ -1,3 +1,4 @@
+// category row section listing product groups
 import "./CategoryRow.css"
 
 const categories = [

@@ -1,3 +1,4 @@
+// privacy page component describing data use
 import "./Pages.css"
 
 function PrivacyPage() {

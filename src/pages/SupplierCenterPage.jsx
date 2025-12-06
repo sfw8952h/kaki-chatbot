@@ -1,3 +1,4 @@
+// supplier center page showing operational dashboards
 import "./Pages.css"
 
 const summary = [

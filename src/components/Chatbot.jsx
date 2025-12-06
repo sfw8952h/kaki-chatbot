@@ -1,4 +1,5 @@
-import { useState } from "react"
+// chatbot widget for interacting with rasa assistant
+import { useMemo, useState } from "react"
 import "./Chatbot.css"
 import { FaComments } from "react-icons/fa"
 
@@ -22,20 +23,79 @@ function Chatbot() {
   const [messages, setMessages] = useState(initialMessages)
   const [draft, setDraft] = useState("")
   const [language, setLanguage] = useState(languages[0].code)
+  const [isSending, setIsSending] = useState(false)
+  const [error, setError] = useState("")
 
-  const sendMessage = () => {
+  const rasaEndpoint = useMemo(
+    () => import.meta.env.VITE_RASA_REST_URL || "http://localhost:5005/webhooks/rest/webhook",
+    [],
+  )
+
+  const sendMessage = async () => {
     if (!draft.trim()) return
+
+    if (isSending) return
+
+    setError("")
 
     const trimmed = draft.trim()
     const userMessage = { id: Date.now(), text: trimmed, from: "user" }
-    const botReply = {
-      id: Date.now() + 1,
-      text: `Thanks for asking about "${trimmed}". I'll fetch the freshest options and update your cart.`,
-      from: "bot",
-    }
-
-    setMessages((prev) => [...prev, userMessage, botReply])
+    setMessages((prev) => [...prev, userMessage])
     setDraft("")
+
+    try {
+      setIsSending(true)
+      const response = await fetch(rasaEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender: "freshmart-web-user",
+          message: trimmed,
+          metadata: { language },
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Rasa replied with ${response.status}`)
+      }
+
+      const payload = await response.json()
+      const replies =
+        Array.isArray(payload) && payload.length > 0
+          ? payload
+              .filter((entry) => entry && (entry.text || entry.image))
+              .map((entry, index) => ({
+                id: Date.now() + index + 1,
+                text:
+                  entry.text ||
+                  (entry.image
+                    ? "The assistant shared an image (display in UI to show it)."
+                    : "The assistant responded."),
+                from: "bot",
+              }))
+          : [
+              {
+                id: Date.now() + 1,
+                text: "I'm here, but I didn't receive a reply from the assistant.",
+                from: "bot",
+              },
+            ]
+
+      setMessages((prev) => [...prev, ...replies])
+    } catch (err) {
+      console.error(err)
+      setError("Trouble reaching the chatbot service. Please try again.")
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          text: "I couldn't reach the assistant. Check your connection or try again shortly.",
+          from: "bot",
+        },
+      ])
+    } finally {
+      setIsSending(false)
+    }
   }
 
   const handleKeyDown = (event) => {
@@ -74,7 +134,9 @@ function Chatbot() {
                 {message.text}
               </p>
             ))}
+            {isSending && <p className="bot subtle">Assistant is thinking...</p>}
           </div>
+          {error && <p className="error-banner">{error}</p>}
           <div className="chat-input-wrapper">
             <input
               className="chat-input"
@@ -83,7 +145,7 @@ function Chatbot() {
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleKeyDown}
             />
-            <button className="send-btn" onClick={sendMessage}>
+            <button className="send-btn" onClick={sendMessage} disabled={isSending}>
               Send
             </button>
           </div>

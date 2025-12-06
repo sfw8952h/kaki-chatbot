@@ -1,3 +1,4 @@
+/* header layout styling with search and nav */
 .header {
   width: min(1200px, 92%);
   margin: 16px auto 0;
@@ -67,6 +68,12 @@
 .split-buttons {
   display: flex;
   gap: 10px;
+}
+
+.header-auth-pill {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
 .mode-wrapper {

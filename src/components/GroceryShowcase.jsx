@@ -1,3 +1,4 @@
+// grocery showcase listing categories and products
 import "./GroceryShowcase.css"
 import { products } from "../data/products"
 

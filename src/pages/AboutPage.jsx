@@ -1,3 +1,4 @@
+// about page describing the store purpose
 import "./Pages.css"
 
 function AboutPage() {

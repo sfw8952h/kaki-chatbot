@@ -1,3 +1,4 @@
+// cart page summary for current items and totals
 import "./Pages.css"
 
 const cartItems = [
@@ -6,7 +7,7 @@ const cartItems = [
   { name: "Sample", qty: "1 loaf", price: "12 SGD" },
 ]
 
-function CartPage() {
+function CartPage({ user, profileName, onNavigate }) {
   const subtotal = cartItems.reduce(
     (sum, item) => sum + Number(item.price.replace(/[^\d.]/g, "")),
     0
@@ -19,15 +20,30 @@ function CartPage() {
 
       <div className="cart-layout">
         <div className="cart-main">
-          <div className="guest-cta">
-            <p>Not signed in?</p>
-            <p className="guest-detail">
-            </p>
-            <div className="guest-actions">
-              <button className="ghost-btn">Continue as guest</button>
-              <button className="primary-btn">Sign in</button>
+          {user ? (
+            <div className="guest-cta signed-in">
+              <p>Signed in as</p>
+              <p className="guest-detail">{profileName || user.email}</p>
+              <div className="guest-actions">
+                <button className="ghost-btn" onClick={() => onNavigate?.("/")}>
+                  Keep shopping
+                </button>
+                <button className="primary-btn">Proceed to checkout</button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="guest-cta">
+              <p>Not signed in?</p>
+              <p className="guest-detail">
+              </p>
+              <div className="guest-actions">
+                <button className="ghost-btn">Continue as guest</button>
+                <button className="primary-btn" onClick={() => onNavigate?.("/login")}>
+                  Sign in
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="cart-items">
             {cartItems.map((item) => (

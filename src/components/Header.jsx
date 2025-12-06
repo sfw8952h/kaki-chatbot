@@ -1,12 +1,15 @@
+// header component with navigation and search
 import { useEffect } from "react"
 import "./Header.css"
 import { FaSearch, FaShoppingCart } from "react-icons/fa"
 import { MdLocationOn } from "react-icons/md"
 
-function Header({ onNavigate }) {
+function Header({ onNavigate, user, profileName, onLogout }) {
   useEffect(() => {
     document.body.classList.remove("dark-mode")
   }, [])
+
+  const displayName = profileName || user?.email
 
   return (
     <header className="header fade-in">
@@ -32,12 +35,32 @@ function Header({ onNavigate }) {
           </div>
 
           <div className="split-buttons">
-            <button
-              className="header-btn zoom-on-hover"
-              onClick={() => onNavigate?.("/login")}
-            >
-              Login
-            </button>
+            {user ? (
+              <div className="header-auth-pill">
+                <button
+                  className="header-btn zoom-on-hover"
+                  type="button"
+                  onClick={() => onNavigate?.("/")}
+                  aria-label="View account"
+                >
+                  {displayName || "Account"}
+                </button>
+                <button
+                  className="header-btn outline-btn zoom-on-hover"
+                  type="button"
+                  onClick={onLogout}
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <button
+                className="header-btn zoom-on-hover"
+                onClick={() => onNavigate?.("/login")}
+              >
+                Login
+              </button>
+            )}
             <button
               className="header-btn outline-btn zoom-on-hover header-cart-btn"
               onClick={() => onNavigate?.("/cart")}

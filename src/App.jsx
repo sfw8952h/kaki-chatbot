@@ -1,3 +1,4 @@
+// main application routing and layout shell
 import { useEffect, useMemo, useState } from "react"
 import "./App.css"
 import Header from "./components/Header"
@@ -17,14 +18,65 @@ import TermsPage from "./pages/TermsPage"
 import PrivacyPage from "./pages/PrivacyPage"
 import ProductPage from "./pages/ProductPage"
 import MembershipPage from "./pages/MembershipPage"
+import { supabase } from "./lib/supabaseClient"
 
 function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname)
+  const [sessionUser, setSessionUser] = useState(null)
+  const [profile, setProfile] = useState(null)
 
   useEffect(() => {
     const handlePop = () => setCurrentPath(window.location.pathname)
     window.addEventListener("popstate", handlePop)
     return () => window.removeEventListener("popstate", handlePop)
+  }, [])
+
+  // hydrate auth state on load and keep it in sync
+  useEffect(() => {
+    if (!supabase) return
+
+    const fetchProfile = async (userId) => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", userId)
+        .maybeSingle()
+      if (error) {
+        console.warn("Unable to load profile", error)
+        setProfile(null)
+        return
+      }
+      setProfile(data)
+    }
+
+    const loadSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      const user = session?.user ?? null
+      setSessionUser(user)
+      if (user) {
+        fetchProfile(user.id)
+      } else {
+        setProfile(null)
+      }
+    }
+
+    loadSession()
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      const user = session?.user ?? null
+      setSessionUser(user)
+      if (user) {
+        fetchProfile(user.id)
+      } else {
+        setProfile(null)
+      }
+    })
+
+    return () => {
+      listener?.subscription?.unsubscribe()
+    }
   }, [])
 
   const navigate = (path) => {
@@ -33,10 +85,25 @@ function App() {
     setCurrentPath(path)
   }
 
+  const handleLogout = async () => {
+    if (!supabase) return
+    await supabase.auth.signOut()
+    setSessionUser(null)
+    setProfile(null)
+    navigate("/")
+  }
+
   const mainContent = useMemo(() => {
     if (currentPath === "/signup") return <SignUpPage onNavigate={navigate} />
     if (currentPath === "/login") return <LoginPage onNavigate={navigate} />
-    if (currentPath === "/cart") return <CartPage />
+    if (currentPath === "/cart")
+      return (
+        <CartPage
+          onNavigate={navigate}
+          user={sessionUser}
+          profileName={profile?.full_name}
+        />
+      )
     if (currentPath === "/admin") return <AdminCenterPage />
     if (currentPath === "/supplier") return <SupplierCenterPage />
     if (currentPath === "/history") return <PurchaseHistoryPage />
@@ -56,7 +123,7 @@ function App() {
         <GroceryShowcase onNavigate={navigate} />
       </>
     )
-  }, [currentPath])
+  }, [currentPath, sessionUser, profile])
 
   return (
     <div className="app">
@@ -68,7 +135,12 @@ function App() {
           Supplier Center
         </button>
       </div>
-      <Header onNavigate={navigate} />
+      <Header
+        onNavigate={navigate}
+        user={sessionUser}
+        profileName={profile?.full_name}
+        onLogout={handleLogout}
+      />
       <main className="page-body">{mainContent}</main>
       <footer className="footer-links">
         <button type="button" onClick={() => navigate("/history")}>

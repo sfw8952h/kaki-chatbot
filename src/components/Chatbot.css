@@ -1,3 +1,4 @@
+/* styling for the chatbot toggle and conversation panel */
 .chatbot-toggle {
   position: fixed;
   bottom: 24px;
@@ -124,4 +125,23 @@
   cursor: pointer;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+.send-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.messages .subtle {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.error-banner {
+  background: rgba(201, 64, 64, 0.12);
+  color: #c94040;
+  border: 1px solid rgba(201, 64, 64, 0.4);
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
 }

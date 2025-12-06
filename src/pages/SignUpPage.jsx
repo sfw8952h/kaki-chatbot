@@ -1,32 +1,191 @@
+// signup page component for new account creation
+import { useState } from "react"
 import "./Pages.css"
+import { getSupabaseClient } from "../lib/supabaseClient"
 
 function SignUpPage({ onNavigate }) {
+  const [fullName, setFullName] = useState("")
+  const [email, setEmail] = useState("")
+  const [phone, setPhone] = useState("")
+  const [password, setPassword] = useState("")
+  const [status, setStatus] = useState("")
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [debug, setDebug] = useState("")
+
+  const handleSignUp = async (event) => {
+    event.preventDefault()
+    setStatus("")
+    setError("")
+    setLoading(true)
+    setDebug("")
+
+    // clean values
+    const cleanEmail = email.trim().toLowerCase()
+    const cleanName = fullName.trim()
+    const cleanPhone = phone.trim()
+
+    // simple client-side validation
+    if (!cleanName || !cleanEmail || !password) {
+      setError("Please fill in your name, email, and password.")
+      setLoading(false)
+      return
+    }
+
+    // basic email pattern check to catch obvious typos
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailPattern.test(cleanEmail)) {
+      setError("Please enter a valid email address.")
+      setLoading(false)
+      return
+    }
+
+    try {
+      const supabase = getSupabaseClient()
+
+      // 1. Create the user in Supabase Auth
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: {
+          data: { full_name: cleanName, phone: cleanPhone },
+          emailRedirectTo: window?.location?.origin
+            ? `${window.location.origin}/login`
+            : undefined,
+        },
+      })
+
+      if (signUpError) {
+        setDebug(JSON.stringify({ stage: "auth.signUp", error: signUpError }, null, 2))
+        throw signUpError
+      }
+
+      const user = signUpData?.user
+      setDebug((prev) =>
+        [
+          prev,
+          JSON.stringify(
+            {
+              stage: "auth.signUp",
+              user: user
+                ? { id: user.id, email: user.email, confirmed_at: user.confirmed_at }
+                : null,
+            },
+            null,
+            2
+          ),
+        ]
+          .filter(Boolean)
+          .join("\n")
+      )
+
+      // 2. Insert user profile row into 'profiles' table
+      if (user) {
+        const { error: profileError } = await supabase.from("profiles").insert({
+          id: user.id,      // must match UUID from auth.users
+          full_name: cleanName,
+          email: cleanEmail,
+          phone: cleanPhone,
+        })
+
+        if (profileError) {
+          setDebug((prev) =>
+            [prev, JSON.stringify({ stage: "profiles.insert", error: profileError }, null, 2)]
+              .filter(Boolean)
+              .join("\n")
+          )
+          console.error("Profile insert error:", profileError)
+          setStatus("Account created, but we could not save your profile details.")
+          setLoading(false)
+          return
+        }
+      }
+
+      // 3. Notify user
+      setStatus("Account created! Check your email to confirm.")
+    } catch (err) {
+      console.error("Signup error:", err)
+      if (!debug) {
+        setDebug(JSON.stringify({ stage: "caught error", message: err.message }, null, 2))
+      }
+      if (err.message?.includes("Supabase client is not configured")) {
+        setError(
+          "Supabase is not configured. Check your .env (VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY)."
+        )
+      } else {
+        setError(err.message || "Unable to complete signup right now.")
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="page-panel">
       <p className="eyebrow">Create account</p>
       <h2>Join Kaki Membership </h2>
-      <p>
-        Get instant access to deals, chat-based shopping, and loyalty points.
-      </p>
-      <form className="signup-form" onSubmit={(event) => event.preventDefault()}>
+      <p>Get instant access to deals, chat-based shopping, and loyalty points.</p>
+
+      <form className="signup-form" onSubmit={handleSignUp}>
         <label>
           Full name
-          <input type="text" placeholder="Your name" />
+          <input
+            type="text"
+            placeholder="Your name"
+            value={fullName}
+            onChange={(event) => setFullName(event.target.value)}
+          />
         </label>
         <label>
           Email address
-          <input type="email" placeholder="name@example.com" />
+          <input
+            type="email"
+            placeholder="name@example.com"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          />
         </label>
         <label>
           Mobile number
-          <input type="tel" placeholder="+65 1234 5678" />
+          <input
+            type="tel"
+            placeholder="+65 1234 5678"
+            value={phone}
+            onChange={(event) => setPhone(event.target.value)}
+          />
         </label>
         <label>
           Set a password
-          <input type="password" placeholder="Choose a secure password" />
+          <input
+            type="password"
+            placeholder="Choose a secure password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
         </label>
+
+        {status && (
+          <p className="auth-status success" role="status">
+            {status}
+          </p>
+        )}
+        {error && (
+          <p className="auth-status error" role="alert">
+            {error}
+          </p>
+        )}
+
+        <button className="primary-btn zoom-on-hover" type="submit" disabled={loading}>
+          {loading ? "Creating..." : "Create account"}
+        </button>
       </form>
-      <button className="primary-btn zoom-on-hover">Create account</button>
+
+      {debug && (
+        <pre className="auth-debug" aria-label="debug info">
+          {debug}
+        </pre>
+      )}
+
       <div className="auth-helper-row">
         <span>Already a member?</span>
         <button

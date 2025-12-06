@@ -1,3 +1,4 @@
+// hero banner showcasing top features and cta
 import "./HeroBanner.css"
 
 const heroFeatures = [

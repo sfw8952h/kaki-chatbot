@@ -1,3 +1,4 @@
+// app bootstrap mounting react into the root element
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'

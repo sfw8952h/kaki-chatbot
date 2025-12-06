@@ -1,3 +1,4 @@
+// feedback page for collecting user suggestions
 import "./Pages.css"
 
 function FeedbackPage() {

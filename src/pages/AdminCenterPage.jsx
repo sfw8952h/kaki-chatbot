@@ -1,3 +1,4 @@
+// admin center page for store management dashboards
 import "./Pages.css"
 
 const summary = [

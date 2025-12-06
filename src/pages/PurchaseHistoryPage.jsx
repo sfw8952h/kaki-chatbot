@@ -1,3 +1,4 @@
+// purchase history page showing previous orders
 import "./Pages.css"
 
 const purchases = [

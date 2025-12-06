@@ -1,3 +1,4 @@
+// membership page for rewards and perks overview
 import "./Pages.css"
 
 const perks = ["Free delivery above $50", "Birthday double points", "Priority support"]

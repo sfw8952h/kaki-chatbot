@@ -1,3 +1,4 @@
+// product detail page displaying selected item info
 import "./Pages.css"
 import { products } from "../data/products"
 
