@@ -9,7 +9,9 @@ function Header({ onNavigate, user, profileName, onLogout }) {
     document.body.classList.remove("dark-mode")
   }, [])
 
-  const displayName = profileName || user?.email
+  // Prefer saved profile name, then auth metadata, then email as a last resort
+  const displayName =
+    profileName || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email
 
   return (
     <header className="header fade-in">
