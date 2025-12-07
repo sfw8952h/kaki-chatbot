@@ -2,8 +2,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Allow overriding the base path via env (useful for GitHub Pages/custom domains)
-const rawBase = process.env.VITE_BASE_PATH || '/kaki-chatbot/'
+// Default to root deployment; allow overriding for subpath (e.g., GitHub Pages repo)
+const rawBase = process.env.VITE_BASE_PATH || '/'
 const normalizeBase = (value) => {
   if (!value) return '/'
   // ensure leading and trailing slash
