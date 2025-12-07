@@ -20,19 +20,16 @@ function SignUpPage({ onNavigate }) {
     setLoading(true)
     setDebug("")
 
-    // clean values
     const cleanEmail = email.trim().toLowerCase()
     const cleanName = fullName.trim()
     const cleanPhone = phone.trim()
 
-    // simple client-side validation
     if (!cleanName || !cleanEmail || !password) {
       setError("Please fill in your name, email, and password.")
       setLoading(false)
       return
     }
 
-    // basic email pattern check to catch obvious typos
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailPattern.test(cleanEmail)) {
       setError("Please enter a valid email address.")
@@ -43,12 +40,13 @@ function SignUpPage({ onNavigate }) {
     try {
       const supabase = getSupabaseClient()
 
-      // 1. Create the user in Supabase Auth
+      // SIGN UP (auth only)
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: cleanEmail,
         password,
+        phone: cleanPhone, // saves into auth.users.phone
         options: {
-          data: { full_name: cleanName, phone: cleanPhone },
+          data: { full_name: cleanName, phone: cleanPhone }, // metadata only
           emailRedirectTo: window?.location?.origin
             ? `${window.location.origin}/login`
             : undefined,
@@ -61,57 +59,35 @@ function SignUpPage({ onNavigate }) {
       }
 
       const user = signUpData?.user
-      setDebug((prev) =>
-        [
-          prev,
-          JSON.stringify(
-            {
-              stage: "auth.signUp",
-              user: user
-                ? { id: user.id, email: user.email, confirmed_at: user.confirmed_at }
-                : null,
-            },
-            null,
-            2
-          ),
-        ]
-          .filter(Boolean)
-          .join("\n")
+
+      setDebug(
+        JSON.stringify(
+          {
+            stage: "auth.signUp",
+            user: user
+              ? {
+                  id: user.id,
+                  email: user.email,
+                  phone: user.phone,
+                  metadata: user.user_metadata,
+                }
+              : null,
+          },
+          null,
+          2
+        )
       )
 
-      // 2. Insert user profile row into 'profiles' table
-      if (user) {
-        const { error: profileError } = await supabase.from("profiles").insert({
-          id: user.id,      // must match UUID from auth.users
-          full_name: cleanName,
-          email: cleanEmail,
-          phone: cleanPhone,
-        })
-
-        if (profileError) {
-          setDebug((prev) =>
-            [prev, JSON.stringify({ stage: "profiles.insert", error: profileError }, null, 2)]
-              .filter(Boolean)
-              .join("\n")
-          )
-          console.error("Profile insert error:", profileError)
-          setStatus("Account created, but we could not save your profile details.")
-          setLoading(false)
-          return
-        }
-      }
-
-      // 3. Notify user
       setStatus("Account created! Check your email to confirm.")
     } catch (err) {
       console.error("Signup error:", err)
+
       if (!debug) {
         setDebug(JSON.stringify({ stage: "caught error", message: err.message }, null, 2))
       }
+
       if (err.message?.includes("Supabase client is not configured")) {
-        setError(
-          "Supabase is not configured. Check your .env (VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY)."
-        )
+        setError("Supabase is not configured. Check your .env values.")
       } else {
         setError(err.message || "Unable to complete signup right now.")
       }
@@ -123,7 +99,7 @@ function SignUpPage({ onNavigate }) {
   return (
     <div className="page-panel">
       <p className="eyebrow">Create account</p>
-      <h2>Join Kaki Membership </h2>
+      <h2>Join Kaki Membership</h2>
       <p>Get instant access to deals, chat-based shopping, and loyalty points.</p>
 
       <form className="signup-form" onSubmit={handleSignUp}>
@@ -136,6 +112,7 @@ function SignUpPage({ onNavigate }) {
             onChange={(event) => setFullName(event.target.value)}
           />
         </label>
+
         <label>
           Email address
           <input
@@ -145,6 +122,7 @@ function SignUpPage({ onNavigate }) {
             onChange={(event) => setEmail(event.target.value)}
           />
         </label>
+
         <label>
           Mobile number
           <input
@@ -154,6 +132,7 @@ function SignUpPage({ onNavigate }) {
             onChange={(event) => setPhone(event.target.value)}
           />
         </label>
+
         <label>
           Set a password
           <input
@@ -164,27 +143,15 @@ function SignUpPage({ onNavigate }) {
           />
         </label>
 
-        {status && (
-          <p className="auth-status success" role="status">
-            {status}
-          </p>
-        )}
-        {error && (
-          <p className="auth-status error" role="alert">
-            {error}
-          </p>
-        )}
+        {status && <p className="auth-status success">{status}</p>}
+        {error && <p className="auth-status error">{error}</p>}
 
         <button className="primary-btn zoom-on-hover" type="submit" disabled={loading}>
           {loading ? "Creating..." : "Create account"}
         </button>
       </form>
 
-      {debug && (
-        <pre className="auth-debug" aria-label="debug info">
-          {debug}
-        </pre>
-      )}
+      {debug && <pre className="auth-debug">{debug}</pre>}
 
       <div className="auth-helper-row">
         <span>Already a member?</span>
