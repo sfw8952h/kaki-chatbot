@@ -21,12 +21,34 @@ import MembershipPage from "./pages/MembershipPage"
 import { supabase } from "./lib/supabaseClient"
 
 function App() {
-  const [currentPath, setCurrentPath] = useState(window.location.pathname)
+  const rawBasePath = import.meta.env.BASE_URL || "/"
+  const basePath =
+    rawBasePath !== "/" && rawBasePath.endsWith("/")
+      ? rawBasePath.slice(0, -1)
+      : rawBasePath || "/"
+
+  const normalizePath = (fullPath) => {
+    if (basePath === "/" || !fullPath.startsWith(basePath)) {
+      return fullPath || "/"
+    }
+    const trimmed = fullPath.slice(basePath.length) || "/"
+    return trimmed.startsWith("/") ? trimmed : `/${trimmed}`
+  }
+
+  const appendBase = (path) => {
+    const ensured = path.startsWith("/") ? path : `/${path}`
+    if (basePath === "/") return ensured
+    return `${basePath}${ensured}`
+  }
+
+  const [currentPath, setCurrentPath] = useState(() =>
+    normalizePath(window.location.pathname)
+  )
   const [sessionUser, setSessionUser] = useState(null)
   const [profile, setProfile] = useState(null)
 
   useEffect(() => {
-    const handlePop = () => setCurrentPath(window.location.pathname)
+    const handlePop = () => setCurrentPath(normalizePath(window.location.pathname))
     window.addEventListener("popstate", handlePop)
     return () => window.removeEventListener("popstate", handlePop)
   }, [])
@@ -80,9 +102,11 @@ function App() {
   }, [])
 
   const navigate = (path) => {
-    if (window.location.pathname === path) return
-    window.history.pushState({}, "", path)
-    setCurrentPath(path)
+    const appPath = path.startsWith("/") ? path : `/${path}`
+    const targetPath = appendBase(appPath)
+    if (window.location.pathname === targetPath) return
+    window.history.pushState({}, "", targetPath)
+    setCurrentPath(appPath)
   }
 
   const handleLogout = async () => {
