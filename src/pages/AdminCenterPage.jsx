@@ -1,98 +1,714 @@
-// admin center page for store management dashboards
+// Admin center with inventory + add product subtabs and styled product table
+import { useEffect, useMemo, useState } from "react"
+import {
+  FaBoxOpen,
+  FaChartBar,
+  FaCog,
+  FaHome,
+  FaList,
+  FaSearch,
+  FaSignOutAlt,
+  FaTruck,
+} from "react-icons/fa"
+import { getSupabaseClient } from "../lib/supabaseClient"
 import "./Pages.css"
 
-const summary = [
-  { label: "SKUs live", value: "2,456" },
-  { label: "Sales this month", value: "678", trend: "up" },
-  { label: "Revenue this month", value: "$234,550" },
+const initialProducts = [
+  {
+    id: "p1",
+    name: "Heirloom tomatoes",
+    price: 5.99,
+    description: "Sweet, vine-ripened tomatoes perfect for salads",
+    category: "Produce",
+    createdAt: "2023-07-25",
+    image: "https://images.unsplash.com/photo-1506806732259-39c2d0268443?w=200&h=200&fit=crop",
+    stock: 32,
+    outOfStock: false,
+  },
+  {
+    id: "p2",
+    name: "Artisan sourdough",
+    price: 7.5,
+    description: "Crusty loaf from our in-house bakery",
+    category: "Bakery",
+    createdAt: "2023-07-24",
+    image: "https://images.unsplash.com/photo-1608198093002-ad4e005484ec?w=200&h=200&fit=crop",
+    stock: 4,
+    outOfStock: false,
+  },
+  {
+    id: "p3",
+    name: "Almond milk",
+    price: 3.99,
+    description: "Unsweetened dairy-free almond milk",
+    category: "Beverages",
+    createdAt: "2023-07-23",
+    image: "https://images.unsplash.com/photo-1582719478248-54e9f2af1c89?w=200&h=200&fit=crop",
+    stock: 0,
+    outOfStock: true,
+  },
 ]
 
-const topProducts = [
-  { name: "Heirloom tomatoes", sales: "123 orders", revenue: "$15,450" },
-  { name: "Petal peel oranges", sales: "98 orders", revenue: "$12,120" },
-  { name: "Artisan sourdough", sales: "74 orders", revenue: "$9,810" },
+const navLinks = [
+  { label: "Dashboard", icon: <FaHome />, key: "dashboard" },
+  { label: "Products", icon: <FaBoxOpen />, key: "products" },
+  { label: "Inventory", icon: <FaList />, key: "inventory" },
+  { label: "Support", icon: <FaCog />, key: "support" },
 ]
 
-function AdminCenterPage() {
+// helper to map DB rows into UI-friendly product shape
+const mapDbProduct = (p) => ({
+  id: p.id,
+  name: p.name,
+  price: Number(p.price) || 0,
+  description: p.description,
+  category: p.category,
+  image: p.image,
+  stock: p.stock ?? 0,
+  outOfStock: p.status !== "approved" || (p.stock ?? 0) === 0,
+  createdAt: p.created_at,
+  slug: p.slug,
+})
+
+function AdminCenterPage({ proposals = [], onProposalDecision, localFeedback = [], onProductUpsert }) {
+  const [products, setProducts] = useState(initialProducts)
+  const [editingId, setEditingId] = useState(null)
+  const [activeTab, setActiveTab] = useState("dashboard")
+  const [formData, setFormData] = useState({
+    name: "",
+    price: "",
+    description: "",
+    category: "",
+    image: "",
+    stock: "",
+    outOfStock: false,
+  })
+  const [flash, setFlash] = useState("")
+  const [query, setQuery] = useState("")
+  const [feedback, setFeedback] = useState([])
+  const [feedbackStatus, setFeedbackStatus] = useState("")
+  const [productStatus, setProductStatus] = useState("")
+
+  const lowStock = useMemo(() => products.filter((p) => p.stock <= 5 && !p.outOfStock), [products])
+  const metrics = useMemo(() => {
+    const total = products.length
+    const outCount = products.filter((p) => p.outOfStock || p.stock === 0).length
+    const lowCount = lowStock.length
+    const avgPrice =
+      total > 0
+        ? (products.reduce((sum, p) => sum + (Number.isFinite(p.price) ? p.price : 0), 0) / total).toFixed(2)
+        : "0.00"
+    const stockUnits = products.reduce((sum, p) => sum + (p.stock || 0), 0)
+    return { total, outCount, lowCount, avgPrice, stockUnits }
+  }, [products, lowStock])
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      price: "",
+      description: "",
+      category: "",
+      brand: "",
+      store: "",
+      image: "",
+      stock: "",
+      outOfStock: false,
+    })
+    setEditingId(null)
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setFlash("")
+    setProductStatus("")
+
+    const cleanPrice = parseFloat(formData.price)
+    const cleanStock = parseInt(formData.stock || "0", 10)
+
+    if (!formData.name.trim() || Number.isNaN(cleanPrice)) {
+      setFlash("Name and price are required.")
+      return
+    }
+
+    // generate a basic slug from the name (if your table has slug column)
+    const slug = formData.name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+
+    let supabase
+    try {
+      supabase = getSupabaseClient()
+    } catch (clientErr) {
+      setProductStatus("Supabase is not configured. Check env keys.")
+      return
+    }
+
+    try {
+      const payload = {
+        name: formData.name.trim(),
+        price: cleanPrice,
+        description: formData.description.trim() || null,
+        category: formData.category.trim() || null,
+        image: formData.image.trim() || null,
+        stock: cleanStock,
+        status: "approved", // or "pending" if you use approvals
+        slug,
+      }
+
+      if (editingId) {
+        // UPDATE existing product in Supabase
+        const { data, error } = await supabase
+          .from("products")
+          .update(payload)
+          .eq("id", editingId)
+          .select()
+          .single()
+
+        if (error) throw error
+
+        const updated = mapDbProduct(data)
+
+        setProducts((prev) => prev.map((p) => (p.id === editingId ? updated : p)))
+        setFlash("Product updated.")
+        onProductUpsert?.(updated)
+      } else {
+        // INSERT new product into Supabase
+        const { data, error } = await supabase
+          .from("products")
+          .insert(payload)
+          .select()
+          .single()
+
+        if (error) throw error
+
+        const created = mapDbProduct(data)
+
+        setProducts((prev) => [created, ...prev])
+        setFlash("Product added.")
+        onProductUpsert?.(created)
+      }
+
+      resetForm()
+      setActiveTab("products")
+    } catch (err) {
+      console.error("Error saving product:", err)
+      setFlash(err.message || "Could not save product.")
+    }
+  }
+
+  const handleEdit = (product) => {
+    setEditingId(product.id)
+    setFormData({
+      name: product.name,
+      price: product.price,
+      description: product.description,
+      category: product.category,
+      image: product.image,
+      stock: product.stock,
+      outOfStock: product.outOfStock,
+      createdAt: product.createdAt,
+    })
+    setFlash("")
+    setActiveTab("add")
+  }
+
+  const handleDelete = (id) => {
+    setProducts((prev) => prev.filter((p) => p.id !== id))
+    if (editingId === id) resetForm()
+    setFlash("Product deleted.")
+    // optional: also delete from Supabase if needed
+    // (you can add a Supabase call here later)
+  }
+
+  const adjustStock = (id, delta) => {
+    setProducts((prev) =>
+      prev.map((p) => {
+        if (p.id !== id) return p
+        const nextStock = Math.max(0, (p.stock || 0) + delta)
+        return { ...p, stock: nextStock, outOfStock: nextStock === 0 || p.outOfStock }
+      })
+    )
+  }
+
+  const toggleOutOfStock = (id, forceOut) => {
+    setProducts((prev) =>
+      prev.map((p) => {
+        if (p.id !== id) return p
+        const outOfStock = forceOut ?? !p.outOfStock
+        return { ...p, outOfStock, stock: outOfStock ? 0 : p.stock }
+      })
+    )
+  }
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return products
+    const term = query.toLowerCase()
+    return products.filter((p) =>
+      [p.name, p.category].some((field) => (field || "").toLowerCase().includes(term))
+    )
+  }, [products, query])
+
+  const approveProposal = async (proposal) => {
+    setProducts((prev) => [
+      {
+        id: `p-${Date.now()}`,
+        name: proposal.name,
+        price: proposal.price,
+        description: proposal.description || "",
+        category: proposal.category,
+        image: proposal.image,
+        stock: proposal.stock,
+        outOfStock: proposal.stock === 0,
+        createdAt: proposal.createdAt || new Date().toISOString().slice(0, 10),
+      },
+      ...prev,
+    ])
+    onProposalDecision?.(proposal.id, "approved")
+    onProductUpsert?.({
+      name: proposal.name,
+      price: proposal.price,
+      description: proposal.description || "",
+      category: proposal.category,
+      image: proposal.image,
+      stock: proposal.stock,
+      outOfStock: proposal.stock === 0,
+      createdAt: proposal.createdAt || new Date().toISOString().slice(0, 10),
+    })
+  }
+
+  const rejectProposal = (proposal) => {
+    onProposalDecision?.(proposal.id, "rejected")
+  }
+
+  useEffect(() => {
+    const loadFeedback = async () => {
+      try {
+        const supabase = getSupabaseClient()
+        const { data, error } = await supabase
+          .from("complaints")
+          .select("id, subject, details, created_at")
+          .order("created_at", { ascending: false })
+        if (error) throw error
+        setFeedback(data || [])
+        setFeedbackStatus("")
+      } catch (err) {
+        console.warn("Unable to load feedback", err)
+        setFeedbackStatus("Unable to load feedback.")
+      }
+    }
+    if (activeTab === "feedback") {
+      loadFeedback()
+    }
+  }, [activeTab])
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        let supabase
+        try {
+          supabase = getSupabaseClient()
+        } catch (clientErr) {
+          setProductStatus("Supabase is not configured. Check env keys.")
+          return
+        }
+        const { data, error } = await supabase
+          .from("products")
+          .select("id, name, slug, description, category, image, price, stock, status, created_at")
+          .order("created_at", { ascending: false })
+        if (error) throw error
+
+        setProducts((data || []).map(mapDbProduct))
+        setProductStatus("")
+      } catch (err) {
+        console.warn("Unable to load products", err)
+        setProductStatus(
+          err.message || "Unable to load products from database; showing local data."
+        )
+      }
+    }
+    loadProducts()
+  }, [])
+
+  const combinedFeedback = useMemo(() => {
+    const existingIds = new Set((feedback || []).map((f) => f.id))
+    const extras = (localFeedback || []).filter((f) => !f.id || !existingIds.has(f.id))
+    return [...(feedback || []), ...extras]
+  }, [feedback, localFeedback])
+
+  const heading =
+    activeTab === "products"
+      ? { eyebrow: "Products", title: "Products", detail: "Manage listings and visibility." }
+      : activeTab === "inventory"
+        ? { eyebrow: "Inventory", title: "Inventory", detail: "Track stock and supplier approvals." }
+        : activeTab === "support"
+          ? { eyebrow: "Support", title: "Feedback", detail: "Review customer complaints." }
+          : { eyebrow: "Dashboard", title: "Overview", detail: "Metrics and health of the store." }
+
   return (
-    <section className="page-panel">
-      <p className="eyebrow">Admin center</p>
-      <h2>Manage store operations</h2>
-      <p>Oversee orders, listings, and promotions from one clean dashboard.</p>
-
-      <div className="dashboard-shell">
-        <aside className="dash-sidebar">
-          <nav className="dash-nav">
-            <a className="dash-nav-item active">Dashboard</a>
-            <a className="dash-nav-item">Orders</a>
-            <a className="dash-nav-item">Listings</a>
-            <a className="dash-nav-item">Promotions</a>
-            <a className="dash-nav-item">Customers</a>
-            <a className="dash-nav-item">Support</a>
-          </nav>
-        </aside>
-
-        <div className="dash-main">
-          <div className="dash-grid">
-            {summary.map((card) => (
-              <article key={card.label} className="dash-card">
-                <p className="dash-label">{card.label}</p>
-                <div className="dash-value-row">
-                  <strong>{card.value}</strong>
-                  {card.trend === "up" && <span className="trend up">▲</span>}
-                  {card.trend === "down" && <span className="trend down">▼</span>}
-                </div>
-              </article>
-            ))}
-          </div>
-
-          <div className="dash-charts">
-            <article className="dash-card dash-chart">
-              <p className="dash-label">Sales by category</p>
-              <div className="chart-placeholder pie">Pie chart placeholder</div>
-            </article>
-            <article className="dash-card dash-chart">
-              <p className="dash-label">Sales by discount</p>
-              <div className="chart-placeholder pie">Pie chart placeholder</div>
-            </article>
-          </div>
-
-          <div className="dash-lists">
-            <article className="dash-card">
-              <p className="dash-label">Top selling products</p>
-              <ul className="dash-list">
-                {topProducts.map((item) => (
-                  <li key={item.name}>
-                    <div>
-                      <strong>{item.name}</strong>
-                      <p>{item.sales}</p>
-                    </div>
-                    <span>{item.revenue}</span>
-                  </li>
-                ))}
-              </ul>
-            </article>
-            <article className="dash-card">
-              <p className="dash-label">Low stock alerts</p>
-              <ul className="dash-list">
-                <li>
-                  <div>
-                    <strong>Fresh mint bundles</strong>
-                    <p>Stock: 5</p>
-                  </div>
-                  <span className="status warn">Restock</span>
-                </li>
-                <li>
-                  <div>
-                    <strong>Artisan sourdough</strong>
-                    <p>Stock: 8</p>
-                  </div>
-                  <span className="status warn">Restock</span>
-                </li>
-              </ul>
-            </article>
-          </div>
+    <section className="admin-shell">
+      <aside className="admin-nav">
+        <div className="nav-brand">
+          <FaBoxOpen />
+          <span>Admin Center</span>
         </div>
+        <nav className="nav-links">
+          {navLinks.map((link) => (
+            <button
+              key={link.label}
+              className={`nav-link ${link.key && activeTab === link.key ? "active" : ""}`}
+              type="button"
+              onClick={() => {
+                if (link.key) setActiveTab(link.key)
+              }}
+            >
+              {link.icon}
+              <span>{link.label}</span>
+            </button>
+          ))}
+        </nav>
+        <button className="nav-link logout" type="button">
+          <FaSignOutAlt />
+          <span>Log out</span>
+        </button>
+      </aside>
+
+      <div className="admin-content">
+        <header className="admin-topbar">
+          <div>
+            <p className="eyebrow">{heading.eyebrow}</p>
+            <h2>{heading.title}</h2>
+            <p className="muted">{heading.detail}</p>
+          </div>
+        </header>
+
+        {activeTab === "dashboard" && (
+          <div className="metric-grid">
+            <article className="metric-card">
+              <p>Total SKUs</p>
+              <strong>{metrics.total}</strong>
+              <span className="metric-pill success">Active</span>
+            </article>
+            <article className="metric-card">
+              <p>Units on hand</p>
+              <strong>{metrics.stockUnits}</strong>
+              <span className="metric-pill neutral">Current</span>
+            </article>
+            <article className="metric-card">
+              <p>Out of stock</p>
+              <strong>{metrics.outCount}</strong>
+              <span className="metric-pill warn">Needs restock</span>
+            </article>
+            <article className="metric-card">
+              <p>Low stock</p>
+              <strong>{metrics.lowCount}</strong>
+              <span className="metric-pill warn">Monitor</span>
+            </article>
+            <article className="metric-card">
+              <p>Avg price</p>
+              <strong>${metrics.avgPrice}</strong>
+              <span className="metric-pill neutral">Blended</span>
+            </article>
+          </div>
+        )}
+
+        {activeTab === "products" && (
+          <article className="dash-card product-board">
+            <div className="board-top">
+              <div>
+                <p className="dash-label">Products</p>
+                <strong>Inventory overview</strong>
+              </div>
+              <div className="board-actions">
+                <div className="board-search">
+                  <FaSearch />
+                  <input
+                    type="text"
+                    placeholder="Search products"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                  />
+                </div>
+                <button className="primary-btn" type="button" onClick={() => setActiveTab("add")}>
+                  Add New
+                </button>
+              </div>
+            </div>
+            {productStatus && <span className="status warn">{productStatus}</span>}
+            <div className="product-table">
+              <div className="product-header">
+                <span>#</span>
+                <span>Image</span>
+                <span>Title</span>
+                <span>Category</span>
+                <span>Price</span>
+                <span>Stock</span>
+                <span>Status</span>
+                <span>Created</span>
+                <span>Actions</span>
+              </div>
+              <div className="product-rows">
+                {filtered.map((product, index) => (
+                  <div key={product.id} className="product-row">
+                    <span>{index + 1}</span>
+                    <span>
+                      {product.image ? (
+                        <img src={product.image} alt={product.name} className="thumb thumb-round" />
+                      ) : (
+                        "—"
+                      )}
+                    </span>
+                    <div className="row-title">
+                      <strong>{product.name}</strong>
+                    </div>
+                    <span className="pill pill-soft">{product.category || "Uncategorized"}</span>
+                    <span className="price-chip">${product.price.toFixed(2)}</span>
+                    <span className="pill pill-neutral">{product.stock} units</span>
+                    <span
+                      className={
+                        product.outOfStock || product.stock === 0 ? "status warn" : "status success"
+                      }
+                    >
+                      {product.outOfStock || product.stock === 0 ? "Inactive" : "Active"}
+                    </span>
+                    <span className="muted">
+                      {product.createdAt ? String(product.createdAt).slice(0, 10) : "—"}
+                    </span>
+                    <div className="action-badges">
+                      <button className="badge-btn primary" onClick={() => handleEdit(product)}>
+                        Edit
+                      </button>
+                      <button className="badge-btn danger" onClick={() => handleDelete(product.id)}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="table-foot">
+                <span>
+                  Showing {filtered.length} of {products.length} entries
+                </span>
+              </div>
+            </div>
+          </article>
+        )}
+
+        {activeTab === "add" && (
+          <article className="dash-card form-card">
+            <div className="dash-card-head">
+              <div>
+                <p className="dash-label">{editingId ? "Edit product" : "Add product"}</p>
+                <strong>{editingId ? "Update details" : "Create a listing"}</strong>
+              </div>
+              <button className="ghost-btn" type="button" onClick={() => setActiveTab("products")}>
+                Back to products
+              </button>
+            </div>
+            <form className="signup-form" onSubmit={handleSubmit}>
+              <div className="dash-duo">
+                <label>
+                  Name
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="Organic berries"
+                  />
+                </label>
+                <label>
+                  Price
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.price}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, price: e.target.value }))}
+                    placeholder="4.99"
+                  />
+                </label>
+              </div>
+              <label>
+                Description
+                <textarea
+                  rows={2}
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, description: e.target.value }))
+                  }
+                  placeholder="Short product description"
+                />
+              </label>
+              <div className="dash-duo">
+                <label>
+                  Category
+                  <input
+                    type="text"
+                    value={formData.category}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, category: e.target.value }))
+                    }
+                    placeholder="Produce"
+                  />
+                </label>
+                <label>
+                  Stock
+                  <input
+                    type="number"
+                    value={formData.stock}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, stock: e.target.value }))}
+                    placeholder="0"
+                    min="0"
+                  />
+                </label>
+              </div>
+              <label>
+                Image URL
+                <input
+                  type="url"
+                  value={formData.image}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, image: e.target.value }))}
+                  placeholder="https://example.com/image.jpg"
+                />
+              </label>
+              <label className="remember-me">
+                <input
+                  type="checkbox"
+                  checked={formData.outOfStock}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, outOfStock: e.target.checked }))
+                  }
+                />
+                <span>Mark as out of stock</span>
+              </label>
+
+              <div className="auth-helper-row">
+                <button className="primary-btn" type="submit">
+                  {editingId ? "Save changes" : "Add product"}
+                </button>
+                {editingId && (
+                  <button className="ghost-btn" type="button" onClick={resetForm}>
+                    Cancel edit
+                  </button>
+                )}
+              </div>
+            </form>
+          </article>
+        )}
+
+        {activeTab === "inventory" && (
+          <article className="dash-card">
+            <div className="dash-card-head">
+              <div>
+                <p className="dash-label">Supplier proposals</p>
+                <strong>Awaiting admin approval</strong>
+              </div>
+            </div>
+            {proposals?.length === 0 && <p>No proposals submitted yet.</p>}
+            <div className="dash-table">
+              <div className="dash-table-head">
+                <span>Name</span>
+                <span>Category</span>
+                <span>Price</span>
+                <span>Stock</span>
+                <span>Status</span>
+                <span>Actions</span>
+              </div>
+              <div className="dash-table-body">
+                {proposals?.map((p) => (
+                  <div key={p.id} className="dash-table-row">
+                    <span>{p.name}</span>
+                    <span>{p.category || "Uncategorized"}</span>
+                    <span className="price-chip">
+                      {p.price?.toFixed ? `$${p.price.toFixed(2)}` : p.price}
+                    </span>
+                    <span>{p.stock ?? 0}</span>
+                    <span
+                      className={
+                        p.status === "approved"
+                          ? "status success"
+                          : p.status === "rejected"
+                            ? "status warn"
+                            : "status"
+                      }
+                    >
+                      {p.status}
+                    </span>
+                    <div className="dash-actions">
+                      <button
+                        className="ghost-btn"
+                        disabled={p.status === "approved"}
+                        onClick={() => approveProposal(p)}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        className="ghost-btn danger"
+                        disabled={p.status === "rejected"}
+                        onClick={() => rejectProposal(p)}
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </article>
+        )}
+
+        {activeTab === "support" && (
+          <article className="dash-card">
+            <div className="dash-card-head">
+              <div>
+                <p className="dash-label">Customer feedback</p>
+                <strong>Complaints submitted via feedback</strong>
+              </div>
+              {feedbackStatus && <span className="status warn">{feedbackStatus}</span>}
+            </div>
+            <div className="dash-table">
+              <div className="dash-table-head">
+                <span>Subject</span>
+                <span>Details</span>
+                <span>Created</span>
+              </div>
+              <div className="dash-table-body">
+                {combinedFeedback.map((item) => (
+                  <div key={item.id} className="dash-table-row">
+                    <span>{item.subject}</span>
+                    <span>{item.details}</span>
+                    <span className="muted">{item.created_at?.slice(0, 10) || "—"}</span>
+                  </div>
+                ))}
+                {combinedFeedback.length === 0 && (
+                  <div className="dash-table-row">
+                    <span>No feedback yet</span>
+                    <span />
+                    <span />
+                  </div>
+                )}
+              </div>
+            </div>
+          </article>
+        )}
+
+        {activeTab === "inventory" && (
+          <article className="dash-card">
+            <p className="dash-label">Low stock alerts</p>
+            {lowStock.length === 0 && <p>All items are healthy on stock.</p>}
+            <ul className="dash-list">
+              {lowStock.map((item) => (
+                <li key={item.id}>
+                  <div>
+                    <strong>{item.name}</strong>
+                    <p>Stock: {item.stock}</p>
+                  </div>
+                  <span className="status warn">Restock</span>
+                </li>
+              ))}
+            </ul>
+          </article>
+        )}
       </div>
     </section>
   )

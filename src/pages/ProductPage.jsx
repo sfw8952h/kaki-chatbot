@@ -1,9 +1,8 @@
 // product detail page displaying selected item info
 import "./Pages.css"
-import { products } from "../data/products"
 
-function ProductPage({ slug }) {
-  const product = products.find((p) => p.slug === slug)
+function ProductPage({ slug, products }) {
+  const product = products?.find((p) => p.slug === slug)
 
   if (!product) {
     return (

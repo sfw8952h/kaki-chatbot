@@ -42,7 +42,7 @@ function Header({ onNavigate, user, profileName, onLogout }) {
                 <button
                   className="header-btn zoom-on-hover"
                   type="button"
-                  onClick={() => onNavigate?.("/")}
+                  onClick={() => onNavigate?.("/profile")}
                   aria-label="View account"
                 >
                   {displayName || "Account"}

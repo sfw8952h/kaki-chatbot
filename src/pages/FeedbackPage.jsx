@@ -2,7 +2,7 @@ import { useState } from "react"
 import "./Pages.css"
 import { getSupabaseClient } from "../lib/supabaseClient"
 
-function FeedbackPage() {
+function FeedbackPage({ onFeedbackSubmitted }) {
   const [subject, setSubject] = useState("")
   const [details, setDetails] = useState("")
   const [status, setStatus] = useState("")
@@ -21,7 +21,13 @@ function FeedbackPage() {
 
     setLoading(true)
     try {
-      const supabase = getSupabaseClient()
+      let supabase
+      try {
+        supabase = getSupabaseClient()
+      } catch (clientErr) {
+        setError("Feedback service is not configured. Check Supabase env vars.")
+        return
+      }
 
       // Get logged-in user's ID
       const {
@@ -35,20 +41,30 @@ function FeedbackPage() {
       }
 
       // Insert complaint into Supabase
-      const { error: insertError } = await supabase.from("complaints").insert({
-        user_id: user.id,
-        subject: subject.trim(),
-        details: details.trim(),
-      })
+      const { data: inserted, error: insertError } = await supabase
+        .from("complaints")
+        .insert({
+          user_id: user.id,
+          subject: subject.trim(),
+          details: details.trim(),
+        })
+        .select()
+        .maybeSingle()
 
       if (insertError) throw insertError
 
       setStatus("Thank you! Your feedback has been submitted.")
       setSubject("")
       setDetails("")
+      onFeedbackSubmitted?.({
+        id: inserted?.id,
+        subject: inserted?.subject || subject.trim(),
+        details: inserted?.details || details.trim(),
+        created_at: inserted?.created_at || new Date().toISOString(),
+      })
     } catch (err) {
       console.error("Feedback error:", err)
-      setError("Could not submit feedback, please try again.")
+      setError(err.message || "Could not submit feedback, please try again.")
     } finally {
       setLoading(false)
     }

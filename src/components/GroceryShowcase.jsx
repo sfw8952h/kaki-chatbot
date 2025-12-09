@@ -1,6 +1,5 @@
 // grocery showcase listing categories and products
 import "./GroceryShowcase.css"
-import { products } from "../data/products"
 
 const categories = [
   { label: "Vegetable", hint: "Local market" },
@@ -11,7 +10,7 @@ const categories = [
   { label: "See all", hint: "Browse aisles", highlight: true },
 ]
 
-function GroceryShowcase({ onNavigate }) {
+function GroceryShowcase({ onNavigate, products }) {
   return (
     <section className="grocery-showcase fade-in">
       <section className="category-panel">

@@ -40,11 +40,10 @@ function SignUpPage({ onNavigate }) {
     try {
       const supabase = getSupabaseClient()
 
-      // SIGN UP (auth only)
+      // 1) SIGN UP (auth only)
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: cleanEmail,
         password,
-        phone: cleanPhone, // saves into auth.users.phone
         options: {
           data: { full_name: cleanName, phone: cleanPhone }, // metadata only
           emailRedirectTo: window?.location?.origin
@@ -59,19 +58,41 @@ function SignUpPage({ onNavigate }) {
       }
 
       const user = signUpData?.user
+      if (!user) {
+        throw new Error("Signup succeeded but user is missing from response.")
+      }
+
+      // 2) INSERT PROFILE ROW (this populates the profiles table)
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: user.id,            // must match profiles.id (PK, FK -> auth.users.id)
+        full_name: cleanName,
+        phone: cleanPhone,
+        role: "customer",       // default role; you can change manually to 'admin' or 'supplier'
+      })
+
+      if (profileError) {
+        setDebug((prev) =>
+          prev ||
+          JSON.stringify(
+            { stage: "profiles.insert", error: profileError },
+            null,
+            2
+          )
+        )
+        // don't throw here if you still want auth account to be created
+        console.error("Profile insert error:", profileError)
+      }
 
       setDebug(
         JSON.stringify(
           {
-            stage: "auth.signUp",
-            user: user
-              ? {
-                  id: user.id,
-                  email: user.email,
-                  phone: user.phone,
-                  metadata: user.user_metadata,
-                }
-              : null,
+            stage: "completed",
+            user: {
+              id: user.id,
+              email: user.email,
+              phone: user.phone,
+              metadata: user.user_metadata,
+            },
           },
           null,
           2
