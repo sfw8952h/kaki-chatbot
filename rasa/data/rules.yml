@@ -1,0 +1,22 @@
+version: "3.1"
+
+rules:
+  - rule: greet
+    steps:
+      - intent: greet
+      - action: utter_greet
+
+  - rule: ask stock
+    steps:
+      - intent: ask_stock
+      - action: utter_ask_stock
+
+  - rule: ask price
+    steps:
+      - intent: ask_price
+      - action: utter_ask_price
+
+  - rule: goodbye
+    steps:
+      - intent: goodbye
+      - action: utter_goodbye

@@ -1,0 +1,24 @@
+version: "3.1"
+
+intents:
+  - greet
+  - ask_stock
+  - ask_price
+  - goodbye
+
+entities:
+  - product
+
+responses:
+  utter_greet:
+    - text: "Hi! Ask me about stock or prices."
+  utter_ask_stock:
+    - text: "Which product should I check for stock?"
+  utter_ask_price:
+    - text: "Which product's price do you need?"
+  utter_goodbye:
+    - text: "Bye!"
+
+session_config:
+  session_expiration_time: 60
+  carry_over_slots_to_new_session: true

@@ -15,6 +15,7 @@ A modern React application for online grocery shopping with an integrated chatbo
 ### Prerequisites
 
 - Node.js (v16 or higher)
+- Python 3.11 (for the Rasa Pro backend)
 - npm or yarn
 
 ### Installation
@@ -36,6 +37,21 @@ npm run dev
 - Run your Rasa server with the REST channel enabled (default endpoint: `http://localhost:5005/webhooks/rest/webhook`).
 - Copy `.env.example` to `.env` and adjust `VITE_RASA_REST_URL` if your endpoint differs.
 - The chatbot sends `{ sender, message, metadata: { language } }` to Rasa and renders returned `text` fields.
+
+### Rasa Pro classic (no LLM) quickstart
+
+Inside `rasa/` you’ll find a minimal classic pipeline and training data:
+
+- `rasa/config.yml` — DIET-based pipeline (whitespace + regex + word/char n-grams, no LLM).
+- `rasa/domain.yml` — intents/entities/responses for greetings, stock, price, goodbye.
+- `rasa/data/nlu.yml` — a few starter examples per intent (product entity annotated).
+- `rasa/data/rules.yml` — maps intents to the canned responses.
+
+How to run:
+1) From `rasa/`, create a Python 3.11 venv and install: `python3.11 -m venv .venv && source .venv/bin/activate && pip install --upgrade pip && pip install rasa-pro` (export `RASA_PRO_TOKEN` first).
+2) Train: `rasa train` (produces a classic model).
+3) Run REST server: `rasa run --enable-api --cors "*" --port 5005`.
+4) In this React app, set `VITE_RASA_REST_URL=http://localhost:5005/webhooks/rest/webhook` and `npm run dev`.
 
 ### Supabase integration (quick start)
 
@@ -83,4 +99,3 @@ grocery-app/
 ## License
 
 MIT
-

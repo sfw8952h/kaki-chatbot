@@ -1,0 +1,26 @@
+version: "3.1"
+
+nlu:
+  - intent: greet
+    examples: |
+      - hi
+      - hello
+      - hey
+
+  - intent: ask_stock
+    examples: |
+      - do you have [apples](product)?
+      - is [milk](product) in stock?
+      - any [bananas](product) today?
+
+  - intent: ask_price
+    examples: |
+      - how much is [bread](product)?
+      - price of [eggs](product)?
+      - what does [cheese](product) cost?
+
+  - intent: goodbye
+    examples: |
+      - bye
+      - see you
+      - thanks, bye

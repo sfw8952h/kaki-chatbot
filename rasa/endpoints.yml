@@ -1,0 +1,28 @@
+# Action server (only needed if you run custom actions)
+# action_endpoint:
+#   url: "http://localhost:5055/webhook"
+
+# Tracker store (uncomment to persist conversations to Postgres)
+# tracker_store:
+#   type: SQL
+#   dialect: "postgresql"
+#   url: ${POSTGRES_URL}
+#   db: "rasa"
+#   username: ${POSTGRES_USER}
+#   password: ${POSTGRES_PASSWORD}
+
+# Event broker (uncomment to stream events, e.g., to RabbitMQ)
+# event_broker:
+#   type: "pika"
+#   url: ${RABBITMQ_URL}
+#   username: ${RABBITMQ_USER}
+#   password: ${RABBITMQ_PASSWORD}
+#   queues:
+#     - "rasa_events"
+
+# Tracing (Rasa Pro) – uncomment if you use Jaeger/OTLP
+# tracing:
+#   type: jaeger
+#   service_name: "rasa-bot"
+#   host: "localhost"
+#   port: 6831

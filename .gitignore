@@ -25,4 +25,8 @@ dist-ssr
 
 .env
 .env.local
-.env.* 
+.env.*
+
+# Python virtual envs
+.venv
+venv
