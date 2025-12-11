@@ -30,3 +30,7 @@ dist-ssr
 # Python virtual envs
 .venv
 venv
+
+# Rasa artifacts
+rasa/.rasa
+rasa/models
