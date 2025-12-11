@@ -2,7 +2,7 @@
 import "./Pages.css"
 import StoreInfo from "../components/StoreInfo"
 
-function LocationsPage() {
+function LocationsPage({ locations }) {
   return (
     <div className="page-stack">
       <section className="page-panel">
@@ -13,10 +13,9 @@ function LocationsPage() {
           or book a pickup slot.
         </p>
       </section>
-      <StoreInfo />
+      <StoreInfo locations={locations} />
     </div>
   )
 }
 
 export default LocationsPage
-

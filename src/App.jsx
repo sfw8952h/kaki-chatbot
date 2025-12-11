@@ -22,6 +22,7 @@ import ProfilePage from "./pages/ProfilePage"
 import LocationsPage from "./pages/LocationsPage"
 import { supabase } from "./lib/supabaseClient"
 import { products as seedProducts } from "./data/products"
+import { storeLocations as seedStoreLocations } from "./data/locations"
 
 function App() {
   const rawBasePath = import.meta.env.BASE_URL || "/"
@@ -52,6 +53,7 @@ function App() {
   const [proposals, setProposals] = useState([])
   const [feedbackEntries, setFeedbackEntries] = useState([])
   const [catalog, setCatalog] = useState([])
+  const [storeLocations, setStoreLocations] = useState(seedStoreLocations)
   const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.toLowerCase()
 
   useEffect(() => {
@@ -242,6 +244,130 @@ function App() {
     loadCatalog()
   }
 
+  const mapStoreRow = (row) => ({
+    id: row.id || row.slug || row.name || `store-${Date.now()}`,
+    name: row.name,
+    address: row.address,
+    phone: row.phone,
+    email: row.email,
+    baseHours: row.base_hours || row.baseHours || {},
+    specialHours: row.special_hours || row.specialHours || [],
+  })
+
+  const loadStoreLocations = useCallback(async () => {
+    if (!supabase) {
+      setStoreLocations(seedStoreLocations)
+      return
+    }
+    const { data, error } = await supabase
+      .from("store_hours")
+      .select("id, name, address, phone, email, base_hours, special_hours")
+      .order("name", { ascending: true })
+    if (error) {
+      console.warn("Unable to load store hours, using seed data", error)
+      setStoreLocations(seedStoreLocations)
+      return
+    }
+    if (!data || data.length === 0) {
+      setStoreLocations(seedStoreLocations)
+      return
+    }
+    setStoreLocations(data.map(mapStoreRow))
+  }, [])
+
+  useEffect(() => {
+    loadStoreLocations()
+  }, [loadStoreLocations])
+
+  const normalizeHours = (baseHours = {}) => {
+    const dayKeys = [
+      "sunday",
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+    ]
+    const normalized = {}
+    dayKeys.forEach((day) => {
+      const record = baseHours[day] || {}
+      if (record.closed) {
+        normalized[day] = { closed: true }
+      } else if (record.open && record.close) {
+        normalized[day] = { open: record.open, close: record.close }
+      } else {
+        normalized[day] = { closed: true }
+      }
+    })
+    return normalized
+  }
+
+  const cleanSpecials = (specialHours = []) =>
+    (specialHours || [])
+      .filter((s) => s && s.date)
+      .map((s) => ({
+        date: s.date,
+        label: s.label || "",
+        closed: !!s.closed,
+        open: s.closed ? null : s.open || "",
+        close: s.closed ? null : s.close || "",
+      }))
+
+  const upsertStoreLocally = (store) => {
+    setStoreLocations((prev) => {
+      const idx = prev.findIndex((s) => s.id === store.id)
+      if (idx >= 0) {
+        const copy = [...prev]
+        copy[idx] = store
+        return copy
+      }
+      return [store, ...prev]
+    })
+  }
+
+  const handleStoreUpsert = async (store) => {
+    const id =
+      store.id ||
+      (store.name
+        ? store.name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)/g, "")
+        : `store-${Date.now()}`)
+    const payload = {
+      ...store,
+      id,
+      baseHours: normalizeHours(store.baseHours || {}),
+      specialHours: cleanSpecials(store.specialHours || []),
+    }
+
+    upsertStoreLocally(payload)
+
+    if (!supabase) return payload
+
+    const { data, error } = await supabase
+      .from("store_hours")
+      .upsert({
+        id: payload.id,
+        name: payload.name,
+        address: payload.address,
+        phone: payload.phone,
+        email: payload.email,
+        base_hours: payload.baseHours,
+        special_hours: payload.specialHours,
+      })
+      .select()
+      .single()
+    if (error) {
+      console.warn("Store hours upsert failed", error)
+      return payload
+    }
+    const saved = mapStoreRow(data)
+    upsertStoreLocally(saved)
+    return saved
+  }
+
   const mainContent = useMemo(() => {
     const role = profile?.role || "customer"
     const isAdmin = role === "admin"
@@ -276,6 +402,8 @@ function App() {
           onProposalDecision={handleProposalDecision}
           localFeedback={feedbackEntries}
           onProductUpsert={handleProductUpsert}
+          storeLocations={storeLocations}
+          onStoreUpsert={handleStoreUpsert}
         />
       )
     }
@@ -306,7 +434,7 @@ function App() {
     if (currentPath === "/about") return <AboutPage />
     if (currentPath === "/terms") return <TermsPage />
     if (currentPath === "/privacy") return <PrivacyPage />
-    if (currentPath === "/locations") return <LocationsPage />
+    if (currentPath === "/locations") return <LocationsPage locations={storeLocations} />
     if (currentPath === "/membership") return <MembershipPage />
     if (currentPath === "/profile")
       return (
@@ -329,7 +457,7 @@ function App() {
         <GroceryShowcase onNavigate={navigate} products={catalog} />
       </>
     )
-  }, [currentPath, sessionUser, profile, catalog, proposals, feedbackEntries])
+  }, [currentPath, sessionUser, profile, catalog, proposals, feedbackEntries, storeLocations])
 
   return (
     <div className="app">

@@ -4,6 +4,7 @@ import {
   FaBoxOpen,
   FaChartBar,
   FaCog,
+  FaClock,
   FaHome,
   FaList,
   FaSearch,
@@ -53,6 +54,7 @@ const navLinks = [
   { label: "Dashboard", icon: <FaHome />, key: "dashboard" },
   { label: "Products", icon: <FaBoxOpen />, key: "products" },
   { label: "Inventory", icon: <FaList />, key: "inventory" },
+  { label: "Stores", icon: <FaClock />, key: "stores" },
   { label: "Support", icon: <FaCog />, key: "support" },
 ]
 
@@ -70,7 +72,24 @@ const mapDbProduct = (p) => ({
   slug: p.slug,
 })
 
-function AdminCenterPage({ proposals = [], onProposalDecision, localFeedback = [], onProductUpsert }) {
+const dayKeys = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+]
+
+function AdminCenterPage({
+  proposals = [],
+  onProposalDecision,
+  localFeedback = [],
+  onProductUpsert,
+  storeLocations = [],
+  onStoreUpsert,
+}) {
   const [products, setProducts] = useState(initialProducts)
   const [editingId, setEditingId] = useState(null)
   const [activeTab, setActiveTab] = useState("dashboard")
@@ -88,6 +107,11 @@ function AdminCenterPage({ proposals = [], onProposalDecision, localFeedback = [
   const [feedback, setFeedback] = useState([])
   const [feedbackStatus, setFeedbackStatus] = useState("")
   const [productStatus, setProductStatus] = useState("")
+  const [storeDrafts, setStoreDrafts] = useState(storeLocations || [])
+  const [storeMessages, setStoreMessages] = useState({})
+  const [storeSaving, setStoreSaving] = useState({})
+  const [storeQuery, setStoreQuery] = useState("")
+  const [expandedStoreId, setExpandedStoreId] = useState(null)
 
   const lowStock = useMemo(() => products.filter((p) => p.stock <= 5 && !p.outOfStock), [products])
   const metrics = useMemo(() => {
@@ -250,6 +274,31 @@ function AdminCenterPage({ proposals = [], onProposalDecision, localFeedback = [
     )
   }, [products, query])
 
+  const filteredStores = useMemo(() => {
+    if (!storeQuery.trim()) return storeDrafts
+    const term = storeQuery.toLowerCase()
+    return storeDrafts.filter((s) =>
+      [s.name, s.address, s.email, s.phone].some((field) =>
+        (field || "").toLowerCase().includes(term)
+      )
+    )
+  }, [storeDrafts, storeQuery])
+
+  const summarizeToday = (store) => {
+    const todayKey = dayKeys[new Date().getDay()]
+    const entry = (store.baseHours || {})[todayKey] || {}
+    if (entry.closed || !entry.open || !entry.close) return "Closed today"
+    return `${entry.open} – ${entry.close}`
+  }
+
+  const countOpenDays = (store) =>
+    dayKeys.filter((d) => {
+      const entry = (store.baseHours || {})[d] || {}
+      return entry.open && entry.close && !entry.closed
+    }).length
+
+  const specialCount = (store) => (store.specialHours || []).length
+
   const approveProposal = async (proposal) => {
     setProducts((prev) => [
       {
@@ -280,6 +329,105 @@ function AdminCenterPage({ proposals = [], onProposalDecision, localFeedback = [
 
   const rejectProposal = (proposal) => {
     onProposalDecision?.(proposal.id, "rejected")
+  }
+
+  useEffect(() => {
+    setStoreDrafts(storeLocations || [])
+  }, [storeLocations])
+
+  const handleStoreFieldChange = (id, field, value) => {
+    setStoreDrafts((prev) =>
+      prev.map((store) => (store.id === id ? { ...store, [field]: value } : store))
+    )
+  }
+
+  const handleBaseHourChange = (id, day, field, value) => {
+    setStoreDrafts((prev) =>
+      prev.map((store) => {
+        if (store.id !== id) return store
+        const baseHours = { ...(store.baseHours || {}) }
+        const dayEntry = { ...(baseHours[day] || {}) }
+        if (field === "closed") {
+          const closed = !!value
+          baseHours[day] = closed ? { closed: true } : { open: "09:00", close: "18:00" }
+        } else {
+          dayEntry[field] = value
+          dayEntry.closed = false
+          baseHours[day] = dayEntry
+        }
+        return { ...store, baseHours }
+      })
+    )
+  }
+
+  const addSpecialHour = (id) => {
+    setStoreDrafts((prev) =>
+      prev.map((store) => {
+        if (store.id !== id) return store
+        const specialHours = [...(store.specialHours || [])]
+        specialHours.push({
+          date: "",
+          open: "09:00",
+          close: "18:00",
+          label: "",
+          closed: false,
+        })
+        return { ...store, specialHours }
+      })
+    )
+  }
+
+  const handleSpecialChange = (id, index, field, value) => {
+    setStoreDrafts((prev) =>
+      prev.map((store) => {
+        if (store.id !== id) return store
+        const specialHours = [...(store.specialHours || [])]
+        const entry = { ...(specialHours[index] || {}) }
+        if (field === "closed") {
+          entry.closed = !!value
+          if (entry.closed) {
+            entry.open = null
+            entry.close = null
+          }
+        } else {
+          entry[field] = value
+        }
+        specialHours[index] = entry
+        return { ...store, specialHours }
+      })
+    )
+  }
+
+  const removeSpecial = (id, index) => {
+    setStoreDrafts((prev) =>
+      prev.map((store) => {
+        if (store.id !== id) return store
+        const specialHours = [...(store.specialHours || [])]
+        specialHours.splice(index, 1)
+        return { ...store, specialHours }
+      })
+    )
+  }
+
+  const saveStore = async (store) => {
+    if (!onStoreUpsert) {
+      setStoreMessages((prev) => ({ ...prev, [store.id]: "Connect Supabase to save changes." }))
+      return
+    }
+    setStoreSaving((prev) => ({ ...prev, [store.id]: true }))
+    setStoreMessages((prev) => ({ ...prev, [store.id]: "" }))
+    try {
+      await onStoreUpsert(store)
+      setStoreMessages((prev) => ({ ...prev, [store.id]: "Saved to database." }))
+    } catch (err) {
+      console.error("Unable to save store hours", err)
+      setStoreMessages((prev) => ({
+        ...prev,
+        [store.id]: err.message || "Unable to save store hours.",
+      }))
+    } finally {
+      setStoreSaving((prev) => ({ ...prev, [store.id]: false }))
+    }
   }
 
   useEffect(() => {
@@ -342,6 +490,12 @@ function AdminCenterPage({ proposals = [], onProposalDecision, localFeedback = [
       ? { eyebrow: "Products", title: "Products", detail: "Manage listings and visibility." }
       : activeTab === "inventory"
         ? { eyebrow: "Inventory", title: "Inventory", detail: "Track stock and supplier approvals." }
+        : activeTab === "stores"
+          ? {
+              eyebrow: "Store network",
+              title: "Store hours",
+              detail: "Edit base hours and holiday overrides for each location.",
+            }
         : activeTab === "support"
           ? { eyebrow: "Support", title: "Feedback", detail: "Review customer complaints." }
           : { eyebrow: "Dashboard", title: "Overview", detail: "Metrics and health of the store." }
@@ -650,6 +804,292 @@ function AdminCenterPage({ proposals = [], onProposalDecision, localFeedback = [
                         Reject
                       </button>
                     </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </article>
+        )}
+
+        {activeTab === "stores" && (
+          <article className="dash-card product-board">
+            <div className="board-top">
+              <div>
+                <p className="dash-label">Stores</p>
+                <strong>Opening hours overview</strong>
+                <p className="muted small-note">
+                  Use “Edit hours” to manage base hours and holiday overrides. Saving syncs to Supabase.
+                </p>
+              </div>
+              <div className="board-actions">
+                <div className="board-search">
+                  <FaSearch />
+                  <input
+                    type="text"
+                    placeholder="Search stores"
+                    value={storeQuery}
+                    onChange={(e) => setStoreQuery(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="store-table">
+              <div className="store-header">
+                <span>#</span>
+                <span>Store</span>
+                <span>Today</span>
+                <span>Specials</span>
+                <span>Contact</span>
+                <span>Actions</span>
+              </div>
+              <div className="store-rows">
+                {filteredStores.map((store, index) => (
+                  <div key={store.id} className="store-row-wrap">
+                    <div className="store-row">
+                      <span>{index + 1}</span>
+                      <div className="row-title">
+                        <strong>{store.name || "Untitled store"}</strong>
+                        <p className="muted">{store.address || "No address set"}</p>
+                        <div className="store-chip-row">
+                          <span className="pill pill-soft">{countOpenDays(store)} open days</span>
+                          <span className="pill pill-neutral">
+                            {specialCount(store)} special{specialCount(store) === 1 ? "" : "s"}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="pill pill-soft">{summarizeToday(store)}</span>
+                      <span className="muted">
+                        {specialCount(store) > 0 ? "Configured" : "None"}
+                      </span>
+                      <span className="contact-stack">
+                        <span>{store.phone || "No phone"}</span>
+                        <span className="muted">{store.email || "No email"}</span>
+                      </span>
+                      <div className="action-badges">
+                        <button
+                          className="badge-btn primary"
+                          onClick={() =>
+                            setExpandedStoreId((prev) => (prev === store.id ? null : store.id))
+                          }
+                        >
+                          {expandedStoreId === store.id ? "Close" : "Edit hours"}
+                        </button>
+                        <button
+                          className="badge-btn"
+                          onClick={() => saveStore(store)}
+                          disabled={storeSaving[store.id]}
+                        >
+                          {storeSaving[store.id] ? "Saving..." : "Save"}
+                        </button>
+                        {storeMessages[store.id] && (
+                          <span className="status ok">{storeMessages[store.id]}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {expandedStoreId === store.id && (
+                      <div className="store-row-expanded">
+                        <div className="store-layout">
+                          <div className="store-fields card-slab">
+                            <p className="dash-label">Details</p>
+                            <label>
+                              Name
+                              <input
+                                type="text"
+                                value={store.name || ""}
+                                onChange={(e) =>
+                                  handleStoreFieldChange(store.id, "name", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Address
+                              <input
+                                type="text"
+                                value={store.address || ""}
+                                onChange={(e) =>
+                                  handleStoreFieldChange(store.id, "address", e.target.value)
+                                }
+                              />
+                            </label>
+                            <div className="dash-duo">
+                              <label>
+                                Phone
+                                <input
+                                  type="text"
+                                  value={store.phone || ""}
+                                  onChange={(e) =>
+                                    handleStoreFieldChange(store.id, "phone", e.target.value)
+                                  }
+                                />
+                              </label>
+                              <label>
+                                Email
+                                <input
+                                  type="email"
+                                  value={store.email || ""}
+                                  onChange={(e) =>
+                                    handleStoreFieldChange(store.id, "email", e.target.value)
+                                  }
+                                />
+                              </label>
+                            </div>
+                          </div>
+
+                          <div className="store-hours-panel card-slab">
+                            <div className="panel-head">
+                              <p className="dash-label">Base hours</p>
+                              <span className="muted small-note">Toggle “Closed” to skip a day.</span>
+                            </div>
+                            <div className="hours-grid">
+                              {dayKeys.map((day) => {
+                                const entry = (store.baseHours || {})[day] || {}
+                                const closed = !!entry.closed
+                                return (
+                                  <div key={day} className="day-card">
+                                    <div className="day-head">
+                                      <span className="dash-label">{day.toUpperCase()}</span>
+                                      <label className="remember-me">
+                                        <input
+                                          type="checkbox"
+                                          checked={closed}
+                                          onChange={(e) =>
+                                            handleBaseHourChange(
+                                              store.id,
+                                              day,
+                                              "closed",
+                                              e.target.checked
+                                            )
+                                          }
+                                        />
+                                        <span>Closed</span>
+                                      </label>
+                                    </div>
+                                    <div className="dash-duo">
+                                      <label>
+                                        Open
+                                        <input
+                                          type="time"
+                                          value={entry.open || ""}
+                                          disabled={closed}
+                                          onChange={(e) =>
+                                            handleBaseHourChange(store.id, day, "open", e.target.value)
+                                          }
+                                        />
+                                      </label>
+                                      <label>
+                                        Close
+                                        <input
+                                          type="time"
+                                          value={entry.close || ""}
+                                          disabled={closed}
+                                          onChange={(e) =>
+                                            handleBaseHourChange(store.id, day, "close", e.target.value)
+                                          }
+                                        />
+                                      </label>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+
+                            <div className="special-section">
+                              <div className="special-head">
+                                <div>
+                                  <p className="dash-label">Holiday / special hours</p>
+                                  <span className="muted small-note">
+                                    Leave open/close blank if “Closed” is ticked.
+                                  </span>
+                                </div>
+                                <button
+                                  className="ghost-btn"
+                                  type="button"
+                                  onClick={() => addSpecialHour(store.id)}
+                                >
+                                  Add date
+                                </button>
+                              </div>
+                              {(store.specialHours || []).length === 0 && (
+                                <p className="muted">No special hours set.</p>
+                              )}
+                              <div className="special-grid">
+                                {(store.specialHours || []).map((entry, index) => (
+                                  <div key={`${store.id}-special-${index}`} className="special-row">
+                                    <div className="dash-duo">
+                                      <label>
+                                        Date
+                                        <input
+                                          type="date"
+                                          value={entry.date || ""}
+                                          onChange={(e) =>
+                                            handleSpecialChange(store.id, index, "date", e.target.value)
+                                          }
+                                        />
+                                      </label>
+                                      <label>
+                                        Label
+                                        <input
+                                          type="text"
+                                          value={entry.label || ""}
+                                          onChange={(e) =>
+                                            handleSpecialChange(store.id, index, "label", e.target.value)
+                                          }
+                                        />
+                                      </label>
+                                    </div>
+                                    <div className="dash-duo">
+                                      <label>
+                                        Open
+                                        <input
+                                          type="time"
+                                          value={entry.open || ""}
+                                          disabled={entry.closed}
+                                          onChange={(e) =>
+                                            handleSpecialChange(store.id, index, "open", e.target.value)
+                                          }
+                                        />
+                                      </label>
+                                      <label>
+                                        Close
+                                        <input
+                                          type="time"
+                                          value={entry.close || ""}
+                                          disabled={entry.closed}
+                                          onChange={(e) =>
+                                            handleSpecialChange(store.id, index, "close", e.target.value)
+                                          }
+                                        />
+                                      </label>
+                                    </div>
+                                    <div className="special-actions">
+                                      <label className="remember-me">
+                                        <input
+                                          type="checkbox"
+                                          checked={!!entry.closed}
+                                          onChange={(e) =>
+                                            handleSpecialChange(store.id, index, "closed", e.target.checked)
+                                          }
+                                        />
+                                        <span>Closed</span>
+                                      </label>
+                                      <button
+                                        className="ghost-btn danger"
+                                        type="button"
+                                        onClick={() => removeSpecial(store.id, index)}
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

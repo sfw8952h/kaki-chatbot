@@ -1,7 +1,7 @@
 // store hours and location details with live status + holiday overrides
 import { useEffect, useMemo, useState } from "react"
 import "./StoreInfo.css"
-import { storeLocations } from "../data/locations"
+import { storeLocations as seedStoreLocations } from "../data/locations"
 
 const weekdayKeys = [
   "sunday",
@@ -97,7 +97,7 @@ const nextSpecial = (location, now) => {
   }
 }
 
-function StoreInfo() {
+function StoreInfo({ locations }) {
   const [now, setNow] = useState(new Date())
 
   useEffect(() => {
@@ -105,8 +105,16 @@ function StoreInfo() {
     return () => clearInterval(timer)
   }, [])
 
+  const activeLocations = (locations && locations.length > 0 ? locations : seedStoreLocations).map(
+    (loc) => ({
+      ...loc,
+      baseHours: loc.baseHours || loc.base_hours || loc.basehours || loc.basehours,
+      specialHours: loc.specialHours || loc.special_hours || loc.specialhours || loc.specialhours,
+    })
+  )
+
   const statusEntries = useMemo(() => {
-    return storeLocations.map((location) => {
+    return activeLocations.map((location) => {
       const todaySchedule = scheduleForDate(location, now)
       const openTime = todaySchedule?.closed ? null : buildDateTime(now, todaySchedule.open)
       const closeTime = todaySchedule?.closed ? null : buildDateTime(now, todaySchedule.close)
@@ -139,7 +147,7 @@ function StoreInfo() {
         upcomingSpecial: nextSpecial(location, now),
       }
     })
-  }, [now])
+  }, [now, activeLocations])
 
   return (
     <section className="store-info glass-panel">
