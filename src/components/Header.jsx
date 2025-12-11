@@ -34,6 +34,13 @@ function Header({ onNavigate, user, profileName, onLogout }) {
           <div className="location">
             <MdLocationOn />
             <span>Delivering across Singapore</span>
+            <button
+              className="location-link"
+              type="button"
+              onClick={() => onNavigate?.("/locations")}
+            >
+              Stores & hours
+            </button>
           </div>
 
           <div className="split-buttons">

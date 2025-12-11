@@ -133,6 +133,20 @@
   background: var(--surface-soft);
 }
 
+.location-link {
+  border: none;
+  background: transparent;
+  color: #0a6c51;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 999px;
+}
+
+.location-link:hover {
+  background: rgba(13, 162, 116, 0.1);
+}
+
 .category-nav {
   margin-top: 18px;
   display: flex;

@@ -1045,6 +1045,12 @@
   font-size: 0.9rem;
 }
 
+.page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .stock-alert {
   color: #ef4444;
   font-weight: 700;

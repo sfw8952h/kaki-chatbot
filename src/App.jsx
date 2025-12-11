@@ -19,6 +19,7 @@ import PrivacyPage from "./pages/PrivacyPage"
 import ProductPage from "./pages/ProductPage"
 import MembershipPage from "./pages/MembershipPage"
 import ProfilePage from "./pages/ProfilePage"
+import LocationsPage from "./pages/LocationsPage"
 import { supabase } from "./lib/supabaseClient"
 import { products as seedProducts } from "./data/products"
 
@@ -305,6 +306,7 @@ function App() {
     if (currentPath === "/about") return <AboutPage />
     if (currentPath === "/terms") return <TermsPage />
     if (currentPath === "/privacy") return <PrivacyPage />
+    if (currentPath === "/locations") return <LocationsPage />
     if (currentPath === "/membership") return <MembershipPage />
     if (currentPath === "/profile")
       return (
@@ -362,6 +364,9 @@ function App() {
         </button>
         <button type="button" onClick={() => navigate("/about")}>
           About
+        </button>
+        <button type="button" onClick={() => navigate("/locations")}>
+          Store locations
         </button>
         <button type="button" onClick={() => navigate("/membership")}>
           Membership
