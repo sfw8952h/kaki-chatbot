@@ -19,6 +19,27 @@ nlu:
       - price of [eggs](product)?
       - what does [cheese](product) cost?
 
+  - intent: store_hours
+    examples: |
+      - what time do you open
+      - store hours
+      - are you open today
+      - when do you close
+      - opening hours for the orchard road store
+      - are you open on holidays
+      - what time do you open on weekends
+      - store location and hours
+
+  - intent: purchase_history
+    examples: |
+      - show my purchase history
+      - what did I buy last time
+      - reorder my usual items
+      - repeat my last order
+      - track my spending
+      - list my past orders
+      - can I see my previous purchases
+
   - intent: goodbye
     examples: |
       - bye

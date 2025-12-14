@@ -14,4 +14,16 @@ const normalizeBase = (value) => {
 export default defineConfig({
   plugins: [react()],
   base: normalizeBase(rawBase),
+  server: {
+    // Reduce filesystem watchers (avoid crawling Python/Node virtual envs)
+    watch: {
+      ignored: [
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/.venv/**',
+        '**/venv/**',
+        '**/rasa/.venv/**',
+      ],
+    },
+  },
 })
