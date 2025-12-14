@@ -26,6 +26,11 @@ function Chatbot() {
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState("")
 
+  const backendEndpoint = useMemo(() => import.meta.env.VITE_BACKEND_CHAT_URL || "", [])
+  const backendAuthToken = useMemo(
+    () => import.meta.env.VITE_BACKEND_AUTH_TOKEN || "",
+    [],
+  )
   const rasaEndpoint = useMemo(
     () => import.meta.env.VITE_RASA_REST_URL || "http://localhost:5005/webhooks/rest/webhook",
     [],
@@ -45,14 +50,28 @@ function Chatbot() {
 
     try {
       setIsSending(true)
-      const response = await fetch(rasaEndpoint, {
+      const useBackend = Boolean(backendEndpoint)
+      const response = await fetch(useBackend ? backendEndpoint : rasaEndpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sender: "freshmart-web-user",
-          message: trimmed,
-          metadata: { language },
-        }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(useBackend && backendAuthToken
+            ? { Authorization: `Bearer ${backendAuthToken}` }
+            : {}),
+        },
+        body: JSON.stringify(
+          useBackend
+            ? {
+                message: trimmed,
+                language,
+                sender_id: "freshmart-web-user",
+              }
+            : {
+                sender: "freshmart-web-user",
+                message: trimmed,
+                metadata: { language },
+              },
+        ),
       })
 
       if (!response.ok) {
@@ -60,8 +79,19 @@ function Chatbot() {
       }
 
       const payload = await response.json()
-      const replies =
-        Array.isArray(payload) && payload.length > 0
+      const replies = (() => {
+        if (useBackend) {
+          const replyText = payload?.reply
+          return [
+            {
+              id: Date.now() + 1,
+              text: replyText || "I'm here, but I didn't receive a reply from the assistant.",
+              from: "bot",
+            },
+          ]
+        }
+
+        return Array.isArray(payload) && payload.length > 0
           ? payload
               .filter((entry) => entry && (entry.text || entry.image))
               .map((entry, index) => ({
@@ -80,6 +110,7 @@ function Chatbot() {
                 from: "bot",
               },
             ]
+      })()
 
       setMessages((prev) => [...prev, ...replies])
     } catch (err) {
