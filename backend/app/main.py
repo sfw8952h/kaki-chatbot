@@ -29,6 +29,11 @@ def root():
     return {"message": "FastAPI backend is running"}
 
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 # Public routes
 app.include_router(auth_router, prefix="/auth")
 app.include_router(chat_router, prefix="/chat")
