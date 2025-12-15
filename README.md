@@ -17,6 +17,7 @@ A modern React application for online grocery shopping with an integrated chatbo
 - Node.js (v16 or higher)
 - Python 3.11 (for the Rasa Pro backend)
 - npm or yarn
+- (Optional) Supabase project + JWT secret if you want to log chat messages server-side
 
 ### Installation
 
@@ -52,6 +53,26 @@ How to run:
 2) Train: `rasa train` (produces a classic model).
 3) Run REST server: `rasa run --enable-api --cors "*" --port 5005`.
 4) In this React app, set `VITE_RASA_REST_URL=http://localhost:5005/webhooks/rest/webhook` and `npm run dev`.
+
+### FastAPI backend integration (bridges frontend → Rasa)
+
+- Backend code lives in `backend/app`. It forwards chat messages to Rasa and (optionally) logs them to Supabase.
+- Required env for backend (can be stored in `backend/.env`):
+  - `RASA_URL` (default `http://localhost:5005/webhooks/rest/webhook`)
+  - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, `SUPABASE_JWT_SECRET` (optional; enable logging + JWT verification)
+- Run backend (from `backend/`):
+  ```bash
+  python3.11 -m venv .venv && source .venv/bin/activate
+  pip install --upgrade pip
+  pip install -r requirements.txt
+  uvicorn app.main:app --reload --port 8000
+  ```
+
+### Frontend ↔ backend wiring
+
+- To send chat via backend: set `VITE_BACKEND_CHAT_URL=http://localhost:8000/chat/chat`.
+- If your backend requires auth, set `VITE_BACKEND_AUTH_TOKEN=<jwt>` (sent as `Authorization: Bearer ...`).
+- If `VITE_BACKEND_CHAT_URL` is not set, the widget will talk directly to Rasa via `VITE_RASA_REST_URL` (existing behavior).
 
 ### Supabase integration (quick start)
 
