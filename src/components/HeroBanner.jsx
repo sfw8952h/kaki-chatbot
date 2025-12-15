@@ -1,4 +1,4 @@
-// hero banner showcasing top features and cta
+// component: HeroBanner (marketing hero)
 import "./HeroBanner.css"
 
 const heroFeatures = [

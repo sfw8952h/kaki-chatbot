@@ -1,4 +1,4 @@
-// dedicated store locator page with live hours and contacts
+// component: LocationsPage
 import "./Pages.css"
 import StoreInfo from "../components/StoreInfo"
 

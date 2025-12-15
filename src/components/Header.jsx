@@ -1,10 +1,10 @@
-// header component with navigation and search
+// component: Header (nav, search, auth controls)
 import { useEffect } from "react"
 import "./Header.css"
 import { FaSearch, FaShoppingCart } from "react-icons/fa"
 import { MdLocationOn } from "react-icons/md"
 
-function Header({ onNavigate, user, profileName, onLogout }) {
+function Header({ onNavigate, user, profileName, onLogout, searchTerm, onSearch }) {
   useEffect(() => {
     document.body.classList.remove("dark-mode")
   }, [])
@@ -26,8 +26,25 @@ function Header({ onNavigate, user, profileName, onLogout }) {
         </button>
 
         <div className="search-box">
-          <input type="text" placeholder="Search for any product or brand" />
-          <FaSearch className="search-icon" />
+          <input
+            type="text"
+            placeholder="Search for any product or brand"
+            value={searchTerm}
+            onChange={(e) => onSearch?.(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                onSearch?.(e.currentTarget.value)
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="search-submit"
+            aria-label="Search products"
+            onClick={() => onSearch?.(searchTerm)}
+          >
+            <FaSearch className="search-icon" />
+          </button>
         </div>
 
         <div className="header-right">

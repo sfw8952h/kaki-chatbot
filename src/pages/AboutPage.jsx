@@ -1,4 +1,4 @@
-// about page describing the store purpose
+// component: AboutPage
 import "./Pages.css"
 
 function AboutPage() {

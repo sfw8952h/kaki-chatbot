@@ -1,4 +1,4 @@
-// Supplier dashboard with sidebar tabs for overview, products, inventory, support
+// component: SupplierCenterPage
 import { useState } from "react"
 import "./Pages.css"
 
@@ -15,6 +15,7 @@ const navItems = [
   { key: "support", label: "Support" },
 ]
 
+// renders supplier proposal submission and dashboards
 function SupplierCenterPage({ onSubmitProposal, proposals = [] }) {
   const [form, setForm] = useState({
     name: "",

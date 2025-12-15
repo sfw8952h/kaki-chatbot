@@ -1,4 +1,4 @@
-// cart page summary for current items and totals
+// component: CartPage
 import "./Pages.css"
 
 const cartItems = [
@@ -34,8 +34,6 @@ function CartPage({ user, profileName, onNavigate }) {
           ) : (
             <div className="guest-cta">
               <p>Not signed in?</p>
-              <p className="guest-detail">
-              </p>
               <div className="guest-actions">
                 <button className="ghost-btn">Continue as guest</button>
                 <button className="primary-btn" onClick={() => onNavigate?.("/login")}>
@@ -73,7 +71,6 @@ function CartPage({ user, profileName, onNavigate }) {
             <strong>Calculated later</strong>
           </div>
           <button className="primary-btn zoom-on-hover">Checkout securely</button>
-          <p className="summary-foot"></p>
         </aside>
       </div>
     </section>

@@ -1,19 +1,12 @@
-// Admin center with inventory + add product subtabs and styled product table
+// component: admincenterpage
+// admin ui: metrics, products crud, proposals, store hours, complaints
+
 import { useEffect, useMemo, useState } from "react"
-import {
-  FaBoxOpen,
-  FaChartBar,
-  FaCog,
-  FaClock,
-  FaHome,
-  FaList,
-  FaSearch,
-  FaSignOutAlt,
-  FaTruck,
-} from "react-icons/fa"
+import { FaBoxOpen, FaCog, FaClock, FaHome, FaList, FaSearch, FaSignOutAlt } from "react-icons/fa"
 import { getSupabaseClient } from "../lib/supabaseClient"
 import "./Pages.css"
 
+// local fallback products
 const initialProducts = [
   {
     id: "p1",
@@ -50,6 +43,7 @@ const initialProducts = [
   },
 ]
 
+// sidebar tabs
 const navLinks = [
   { label: "Dashboard", icon: <FaHome />, key: "dashboard" },
   { label: "Products", icon: <FaBoxOpen />, key: "products" },
@@ -58,7 +52,7 @@ const navLinks = [
   { label: "Support", icon: <FaCog />, key: "support" },
 ]
 
-// helper to map DB rows into UI-friendly product shape
+// db row -> ui product
 const mapDbProduct = (p) => ({
   id: p.id,
   name: p.name,
@@ -72,27 +66,23 @@ const mapDbProduct = (p) => ({
   slug: p.slug,
 })
 
-const dayKeys = [
-  "sunday",
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-]
+// store hours keys
+const dayKeys = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
 
 function AdminCenterPage({
   proposals = [],
   onProposalDecision,
   localFeedback = [],
   onProductUpsert,
+  onProductDelete,
   storeLocations = [],
   onStoreUpsert,
 }) {
   const [products, setProducts] = useState(initialProducts)
   const [editingId, setEditingId] = useState(null)
   const [activeTab, setActiveTab] = useState("dashboard")
+
+  // product form
   const [formData, setFormData] = useState({
     name: "",
     price: "",
@@ -102,6 +92,7 @@ function AdminCenterPage({
     stock: "",
     outOfStock: false,
   })
+
   const [flash, setFlash] = useState("")
   const [query, setQuery] = useState("")
   const [feedback, setFeedback] = useState([])
@@ -113,19 +104,25 @@ function AdminCenterPage({
   const [storeQuery, setStoreQuery] = useState("")
   const [expandedStoreId, setExpandedStoreId] = useState(null)
 
+  // low stock list
   const lowStock = useMemo(() => products.filter((p) => p.stock <= 5 && !p.outOfStock), [products])
+
+  // dashboard metrics
   const metrics = useMemo(() => {
     const total = products.length
     const outCount = products.filter((p) => p.outOfStock || p.stock === 0).length
     const lowCount = lowStock.length
     const avgPrice =
       total > 0
-        ? (products.reduce((sum, p) => sum + (Number.isFinite(p.price) ? p.price : 0), 0) / total).toFixed(2)
+        ? (
+            products.reduce((sum, p) => sum + (Number.isFinite(p.price) ? p.price : 0), 0) / total
+          ).toFixed(2)
         : "0.00"
     const stockUnits = products.reduce((sum, p) => sum + (p.stock || 0), 0)
     return { total, outCount, lowCount, avgPrice, stockUnits }
   }, [products, lowStock])
 
+  // clear form + exit edit
   const resetForm = () => {
     setFormData({
       name: "",
@@ -141,6 +138,7 @@ function AdminCenterPage({
     setEditingId(null)
   }
 
+  // add/update product (db + ui)
   const handleSubmit = async (event) => {
     event.preventDefault()
     setFlash("")
@@ -154,13 +152,14 @@ function AdminCenterPage({
       return
     }
 
-    // generate a basic slug from the name (if your table has slug column)
+    // build slug
     const slug = formData.name
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9\s-]/g, "")
       .replace(/\s+/g, "-")
 
+    // get client
     let supabase
     try {
       supabase = getSupabaseClient()
@@ -177,38 +176,30 @@ function AdminCenterPage({
         category: formData.category.trim() || null,
         image: formData.image.trim() || null,
         stock: cleanStock,
-        status: "approved", // or "pending" if you use approvals
+        status: "approved",
         slug,
       }
 
       if (editingId) {
-        // UPDATE existing product in Supabase
+        // update
         const { data, error } = await supabase
           .from("products")
           .update(payload)
           .eq("id", editingId)
           .select()
           .single()
-
         if (error) throw error
 
         const updated = mapDbProduct(data)
-
         setProducts((prev) => prev.map((p) => (p.id === editingId ? updated : p)))
         setFlash("Product updated.")
         onProductUpsert?.(updated)
       } else {
-        // INSERT new product into Supabase
-        const { data, error } = await supabase
-          .from("products")
-          .insert(payload)
-          .select()
-          .single()
-
+        // insert
+        const { data, error } = await supabase.from("products").insert(payload).select().single()
         if (error) throw error
 
         const created = mapDbProduct(data)
-
         setProducts((prev) => [created, ...prev])
         setFlash("Product added.")
         onProductUpsert?.(created)
@@ -222,6 +213,7 @@ function AdminCenterPage({
     }
   }
 
+  // load product into form
   const handleEdit = (product) => {
     setEditingId(product.id)
     setFormData({
@@ -238,14 +230,35 @@ function AdminCenterPage({
     setActiveTab("add")
   }
 
-  const handleDelete = (id) => {
-    setProducts((prev) => prev.filter((p) => p.id !== id))
-    if (editingId === id) resetForm()
-    setFlash("Product deleted.")
-    // optional: also delete from Supabase if needed
-    // (you can add a Supabase call here later)
+  // delete locally
+  const handleDelete = async (id) => {
+    if (!id) return
+    setFlash("")
+    setProductStatus("")
+
+    let supabase
+    try {
+      supabase = getSupabaseClient()
+    } catch (clientErr) {
+      setFlash("Supabase is not configured. Unable to delete product.")
+      return
+    }
+
+    try {
+      const { error } = await supabase.from("products").delete().eq("id", id)
+      if (error) throw error
+
+      setProducts((prev) => prev.filter((p) => p.id !== id))
+      onProductDelete?.(id)
+      if (editingId === id) resetForm()
+      setFlash("Product deleted.")
+    } catch (err) {
+      console.error("Unable to delete product", err)
+      setFlash(err.message || "Could not delete product.")
+    }
   }
 
+  // adjust stock locally
   const adjustStock = (id, delta) => {
     setProducts((prev) =>
       prev.map((p) => {
@@ -256,6 +269,7 @@ function AdminCenterPage({
     )
   }
 
+  // toggle oos locally
   const toggleOutOfStock = (id, forceOut) => {
     setProducts((prev) =>
       prev.map((p) => {
@@ -266,6 +280,7 @@ function AdminCenterPage({
     )
   }
 
+  // filter products by query
   const filtered = useMemo(() => {
     if (!query.trim()) return products
     const term = query.toLowerCase()
@@ -274,16 +289,16 @@ function AdminCenterPage({
     )
   }, [products, query])
 
+  // filter stores by query
   const filteredStores = useMemo(() => {
     if (!storeQuery.trim()) return storeDrafts
     const term = storeQuery.toLowerCase()
     return storeDrafts.filter((s) =>
-      [s.name, s.address, s.email, s.phone].some((field) =>
-        (field || "").toLowerCase().includes(term)
-      )
+      [s.name, s.address, s.email, s.phone].some((field) => (field || "").toLowerCase().includes(term))
     )
   }, [storeDrafts, storeQuery])
 
+  // today hours label
   const summarizeToday = (store) => {
     const todayKey = dayKeys[new Date().getDay()]
     const entry = (store.baseHours || {})[todayKey] || {}
@@ -291,14 +306,17 @@ function AdminCenterPage({
     return `${entry.open} – ${entry.close}`
   }
 
+  // open days count
   const countOpenDays = (store) =>
     dayKeys.filter((d) => {
       const entry = (store.baseHours || {})[d] || {}
       return entry.open && entry.close && !entry.closed
     }).length
 
+  // special entries count
   const specialCount = (store) => (store.specialHours || []).length
 
+  // approve proposal -> add product locally + callbacks
   const approveProposal = async (proposal) => {
     setProducts((prev) => [
       {
@@ -327,20 +345,22 @@ function AdminCenterPage({
     })
   }
 
+  // reject proposal via callback
   const rejectProposal = (proposal) => {
     onProposalDecision?.(proposal.id, "rejected")
   }
 
+  // refresh drafts when props change
   useEffect(() => {
     setStoreDrafts(storeLocations || [])
   }, [storeLocations])
 
+  // edit store field in drafts
   const handleStoreFieldChange = (id, field, value) => {
-    setStoreDrafts((prev) =>
-      prev.map((store) => (store.id === id ? { ...store, [field]: value } : store))
-    )
+    setStoreDrafts((prev) => prev.map((s) => (s.id === id ? { ...s, [field]: value } : s)))
   }
 
+  // edit base hours in drafts
   const handleBaseHourChange = (id, day, field, value) => {
     setStoreDrafts((prev) =>
       prev.map((store) => {
@@ -360,23 +380,19 @@ function AdminCenterPage({
     )
   }
 
+  // add special hour entry
   const addSpecialHour = (id) => {
     setStoreDrafts((prev) =>
       prev.map((store) => {
         if (store.id !== id) return store
         const specialHours = [...(store.specialHours || [])]
-        specialHours.push({
-          date: "",
-          open: "09:00",
-          close: "18:00",
-          label: "",
-          closed: false,
-        })
+        specialHours.push({ date: "", open: "09:00", close: "18:00", label: "", closed: false })
         return { ...store, specialHours }
       })
     )
   }
 
+  // edit special entry
   const handleSpecialChange = (id, index, field, value) => {
     setStoreDrafts((prev) =>
       prev.map((store) => {
@@ -398,6 +414,7 @@ function AdminCenterPage({
     )
   }
 
+  // remove special entry
   const removeSpecial = (id, index) => {
     setStoreDrafts((prev) =>
       prev.map((store) => {
@@ -409,6 +426,7 @@ function AdminCenterPage({
     )
   }
 
+  // save store via callback
   const saveStore = async (store) => {
     if (!onStoreUpsert) {
       setStoreMessages((prev) => ({ ...prev, [store.id]: "Connect Supabase to save changes." }))
@@ -421,15 +439,13 @@ function AdminCenterPage({
       setStoreMessages((prev) => ({ ...prev, [store.id]: "Saved to database." }))
     } catch (err) {
       console.error("Unable to save store hours", err)
-      setStoreMessages((prev) => ({
-        ...prev,
-        [store.id]: err.message || "Unable to save store hours.",
-      }))
+      setStoreMessages((prev) => ({ ...prev, [store.id]: err.message || "Unable to save store hours." }))
     } finally {
       setStoreSaving((prev) => ({ ...prev, [store.id]: false }))
     }
   }
 
+  // load complaints (note: runs only if tab === "feedback")
   useEffect(() => {
     const loadFeedback = async () => {
       try {
@@ -446,11 +462,10 @@ function AdminCenterPage({
         setFeedbackStatus("Unable to load feedback.")
       }
     }
-    if (activeTab === "feedback") {
-      loadFeedback()
-    }
+    if (activeTab === "feedback") loadFeedback()
   }, [activeTab])
 
+  // load products on mount
   useEffect(() => {
     const loadProducts = async () => {
       try {
@@ -466,39 +481,34 @@ function AdminCenterPage({
           .select("id, name, slug, description, category, image, price, stock, status, created_at")
           .order("created_at", { ascending: false })
         if (error) throw error
-
         setProducts((data || []).map(mapDbProduct))
         setProductStatus("")
       } catch (err) {
         console.warn("Unable to load products", err)
-        setProductStatus(
-          err.message || "Unable to load products from database; showing local data."
-        )
+        setProductStatus(err.message || "Unable to load products from database; showing local data.")
       }
     }
     loadProducts()
   }, [])
 
+  // merge db + local feedback
   const combinedFeedback = useMemo(() => {
     const existingIds = new Set((feedback || []).map((f) => f.id))
     const extras = (localFeedback || []).filter((f) => !f.id || !existingIds.has(f.id))
     return [...(feedback || []), ...extras]
   }, [feedback, localFeedback])
 
+  // top heading per tab
   const heading =
     activeTab === "products"
       ? { eyebrow: "Products", title: "Products", detail: "Manage listings and visibility." }
       : activeTab === "inventory"
         ? { eyebrow: "Inventory", title: "Inventory", detail: "Track stock and supplier approvals." }
         : activeTab === "stores"
-          ? {
-              eyebrow: "Store network",
-              title: "Store hours",
-              detail: "Edit base hours and holiday overrides for each location.",
-            }
-        : activeTab === "support"
-          ? { eyebrow: "Support", title: "Feedback", detail: "Review customer complaints." }
-          : { eyebrow: "Dashboard", title: "Overview", detail: "Metrics and health of the store." }
+          ? { eyebrow: "Store network", title: "Store hours", detail: "Edit base hours and holiday overrides for each location." }
+          : activeTab === "support"
+            ? { eyebrow: "Support", title: "Feedback", detail: "Review customer complaints." }
+            : { eyebrow: "Dashboard", title: "Overview", detail: "Metrics and health of the store." }
 
   return (
     <section className="admin-shell">
@@ -507,21 +517,21 @@ function AdminCenterPage({
           <FaBoxOpen />
           <span>Admin Center</span>
         </div>
+
         <nav className="nav-links">
           {navLinks.map((link) => (
             <button
               key={link.label}
               className={`nav-link ${link.key && activeTab === link.key ? "active" : ""}`}
               type="button"
-              onClick={() => {
-                if (link.key) setActiveTab(link.key)
-              }}
+              onClick={() => link.key && setActiveTab(link.key)}
             >
               {link.icon}
               <span>{link.label}</span>
             </button>
           ))}
         </nav>
+
         <button className="nav-link logout" type="button">
           <FaSignOutAlt />
           <span>Log out</span>
@@ -589,7 +599,9 @@ function AdminCenterPage({
                 </button>
               </div>
             </div>
+
             {productStatus && <span className="status warn">{productStatus}</span>}
+
             <div className="product-table">
               <div className="product-header">
                 <span>#</span>
@@ -602,6 +614,7 @@ function AdminCenterPage({
                 <span>Created</span>
                 <span>Actions</span>
               </div>
+
               <div className="product-rows">
                 {filtered.map((product, index) => (
                   <div key={product.id} className="product-row">
@@ -619,16 +632,10 @@ function AdminCenterPage({
                     <span className="pill pill-soft">{product.category || "Uncategorized"}</span>
                     <span className="price-chip">${product.price.toFixed(2)}</span>
                     <span className="pill pill-neutral">{product.stock} units</span>
-                    <span
-                      className={
-                        product.outOfStock || product.stock === 0 ? "status warn" : "status success"
-                      }
-                    >
+                    <span className={product.outOfStock || product.stock === 0 ? "status warn" : "status success"}>
                       {product.outOfStock || product.stock === 0 ? "Inactive" : "Active"}
                     </span>
-                    <span className="muted">
-                      {product.createdAt ? String(product.createdAt).slice(0, 10) : "—"}
-                    </span>
+                    <span className="muted">{product.createdAt ? String(product.createdAt).slice(0, 10) : "—"}</span>
                     <div className="action-badges">
                       <button className="badge-btn primary" onClick={() => handleEdit(product)}>
                         Edit
@@ -640,6 +647,7 @@ function AdminCenterPage({
                   </div>
                 ))}
               </div>
+
               <div className="table-foot">
                 <span>
                   Showing {filtered.length} of {products.length} entries
@@ -660,6 +668,7 @@ function AdminCenterPage({
                 Back to products
               </button>
             </div>
+
             <form className="signup-form" onSubmit={handleSubmit}>
               <div className="dash-duo">
                 <label>
@@ -682,26 +691,24 @@ function AdminCenterPage({
                   />
                 </label>
               </div>
+
               <label>
                 Description
                 <textarea
                   rows={2}
                   value={formData.description}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, description: e.target.value }))
-                  }
+                  onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
                   placeholder="Short product description"
                 />
               </label>
+
               <div className="dash-duo">
                 <label>
                   Category
                   <input
                     type="text"
                     value={formData.category}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, category: e.target.value }))
-                    }
+                    onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
                     placeholder="Produce"
                   />
                 </label>
@@ -716,6 +723,7 @@ function AdminCenterPage({
                   />
                 </label>
               </div>
+
               <label>
                 Image URL
                 <input
@@ -725,13 +733,12 @@ function AdminCenterPage({
                   placeholder="https://example.com/image.jpg"
                 />
               </label>
+
               <label className="remember-me">
                 <input
                   type="checkbox"
                   checked={formData.outOfStock}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, outOfStock: e.target.checked }))
-                  }
+                  onChange={(e) => setFormData((prev) => ({ ...prev, outOfStock: e.target.checked }))}
                 />
                 <span>Mark as out of stock</span>
               </label>
@@ -746,6 +753,8 @@ function AdminCenterPage({
                   </button>
                 )}
               </div>
+
+              {flash && <p className="status ok">{flash}</p>}
             </form>
           </article>
         )}
@@ -758,7 +767,9 @@ function AdminCenterPage({
                 <strong>Awaiting admin approval</strong>
               </div>
             </div>
+
             {proposals?.length === 0 && <p>No proposals submitted yet.</p>}
+
             <div className="dash-table">
               <div className="dash-table-head">
                 <span>Name</span>
@@ -773,34 +784,16 @@ function AdminCenterPage({
                   <div key={p.id} className="dash-table-row">
                     <span>{p.name}</span>
                     <span>{p.category || "Uncategorized"}</span>
-                    <span className="price-chip">
-                      {p.price?.toFixed ? `$${p.price.toFixed(2)}` : p.price}
-                    </span>
+                    <span className="price-chip">{p.price?.toFixed ? `$${p.price.toFixed(2)}` : p.price}</span>
                     <span>{p.stock ?? 0}</span>
-                    <span
-                      className={
-                        p.status === "approved"
-                          ? "status success"
-                          : p.status === "rejected"
-                            ? "status warn"
-                            : "status"
-                      }
-                    >
+                    <span className={p.status === "approved" ? "status success" : p.status === "rejected" ? "status warn" : "status"}>
                       {p.status}
                     </span>
                     <div className="dash-actions">
-                      <button
-                        className="ghost-btn"
-                        disabled={p.status === "approved"}
-                        onClick={() => approveProposal(p)}
-                      >
+                      <button className="ghost-btn" disabled={p.status === "approved"} onClick={() => approveProposal(p)}>
                         Approve
                       </button>
-                      <button
-                        className="ghost-btn danger"
-                        disabled={p.status === "rejected"}
-                        onClick={() => rejectProposal(p)}
-                      >
+                      <button className="ghost-btn danger" disabled={p.status === "rejected"} onClick={() => rejectProposal(p)}>
                         Reject
                       </button>
                     </div>
@@ -817,19 +810,12 @@ function AdminCenterPage({
               <div>
                 <p className="dash-label">Stores</p>
                 <strong>Opening hours overview</strong>
-                <p className="muted small-note">
-                  Use “Edit hours” to manage base hours and holiday overrides. Saving syncs to Supabase.
-                </p>
+                <p className="muted small-note">Use “Edit hours” to manage base hours and holiday overrides. Saving syncs to Supabase.</p>
               </div>
               <div className="board-actions">
                 <div className="board-search">
                   <FaSearch />
-                  <input
-                    type="text"
-                    placeholder="Search stores"
-                    value={storeQuery}
-                    onChange={(e) => setStoreQuery(e.target.value)}
-                  />
+                  <input type="text" placeholder="Search stores" value={storeQuery} onChange={(e) => setStoreQuery(e.target.value)} />
                 </div>
               </div>
             </div>
@@ -843,6 +829,7 @@ function AdminCenterPage({
                 <span>Contact</span>
                 <span>Actions</span>
               </div>
+
               <div className="store-rows">
                 {filteredStores.map((store, index) => (
                   <div key={store.id} className="store-row-wrap">
@@ -858,33 +845,28 @@ function AdminCenterPage({
                           </span>
                         </div>
                       </div>
+
                       <span className="pill pill-soft">{summarizeToday(store)}</span>
-                      <span className="muted">
-                        {specialCount(store) > 0 ? "Configured" : "None"}
-                      </span>
+                      <span className="muted">{specialCount(store) > 0 ? "Configured" : "None"}</span>
+
                       <span className="contact-stack">
                         <span>{store.phone || "No phone"}</span>
                         <span className="muted">{store.email || "No email"}</span>
                       </span>
+
                       <div className="action-badges">
                         <button
                           className="badge-btn primary"
-                          onClick={() =>
-                            setExpandedStoreId((prev) => (prev === store.id ? null : store.id))
-                          }
+                          onClick={() => setExpandedStoreId((prev) => (prev === store.id ? null : store.id))}
                         >
                           {expandedStoreId === store.id ? "Close" : "Edit hours"}
                         </button>
-                        <button
-                          className="badge-btn"
-                          onClick={() => saveStore(store)}
-                          disabled={storeSaving[store.id]}
-                        >
+
+                        <button className="badge-btn" onClick={() => saveStore(store)} disabled={storeSaving[store.id]}>
                           {storeSaving[store.id] ? "Saving..." : "Save"}
                         </button>
-                        {storeMessages[store.id] && (
-                          <span className="status ok">{storeMessages[store.id]}</span>
-                        )}
+
+                        {storeMessages[store.id] && <span className="status ok">{storeMessages[store.id]}</span>}
                       </div>
                     </div>
 
@@ -895,44 +877,20 @@ function AdminCenterPage({
                             <p className="dash-label">Details</p>
                             <label>
                               Name
-                              <input
-                                type="text"
-                                value={store.name || ""}
-                                onChange={(e) =>
-                                  handleStoreFieldChange(store.id, "name", e.target.value)
-                                }
-                              />
+                              <input type="text" value={store.name || ""} onChange={(e) => handleStoreFieldChange(store.id, "name", e.target.value)} />
                             </label>
                             <label>
                               Address
-                              <input
-                                type="text"
-                                value={store.address || ""}
-                                onChange={(e) =>
-                                  handleStoreFieldChange(store.id, "address", e.target.value)
-                                }
-                              />
+                              <input type="text" value={store.address || ""} onChange={(e) => handleStoreFieldChange(store.id, "address", e.target.value)} />
                             </label>
                             <div className="dash-duo">
                               <label>
                                 Phone
-                                <input
-                                  type="text"
-                                  value={store.phone || ""}
-                                  onChange={(e) =>
-                                    handleStoreFieldChange(store.id, "phone", e.target.value)
-                                  }
-                                />
+                                <input type="text" value={store.phone || ""} onChange={(e) => handleStoreFieldChange(store.id, "phone", e.target.value)} />
                               </label>
                               <label>
                                 Email
-                                <input
-                                  type="email"
-                                  value={store.email || ""}
-                                  onChange={(e) =>
-                                    handleStoreFieldChange(store.id, "email", e.target.value)
-                                  }
-                                />
+                                <input type="email" value={store.email || ""} onChange={(e) => handleStoreFieldChange(store.id, "email", e.target.value)} />
                               </label>
                             </div>
                           </div>
@@ -942,6 +900,7 @@ function AdminCenterPage({
                               <p className="dash-label">Base hours</p>
                               <span className="muted small-note">Toggle “Closed” to skip a day.</span>
                             </div>
+
                             <div className="hours-grid">
                               {dayKeys.map((day) => {
                                 const entry = (store.baseHours || {})[day] || {}
@@ -954,14 +913,7 @@ function AdminCenterPage({
                                         <input
                                           type="checkbox"
                                           checked={closed}
-                                          onChange={(e) =>
-                                            handleBaseHourChange(
-                                              store.id,
-                                              day,
-                                              "closed",
-                                              e.target.checked
-                                            )
-                                          }
+                                          onChange={(e) => handleBaseHourChange(store.id, day, "closed", e.target.checked)}
                                         />
                                         <span>Closed</span>
                                       </label>
@@ -973,9 +925,7 @@ function AdminCenterPage({
                                           type="time"
                                           value={entry.open || ""}
                                           disabled={closed}
-                                          onChange={(e) =>
-                                            handleBaseHourChange(store.id, day, "open", e.target.value)
-                                          }
+                                          onChange={(e) => handleBaseHourChange(store.id, day, "open", e.target.value)}
                                         />
                                       </label>
                                       <label>
@@ -984,9 +934,7 @@ function AdminCenterPage({
                                           type="time"
                                           value={entry.close || ""}
                                           disabled={closed}
-                                          onChange={(e) =>
-                                            handleBaseHourChange(store.id, day, "close", e.target.value)
-                                          }
+                                          onChange={(e) => handleBaseHourChange(store.id, day, "close", e.target.value)}
                                         />
                                       </label>
                                     </div>
@@ -999,86 +947,46 @@ function AdminCenterPage({
                               <div className="special-head">
                                 <div>
                                   <p className="dash-label">Holiday / special hours</p>
-                                  <span className="muted small-note">
-                                    Leave open/close blank if “Closed” is ticked.
-                                  </span>
+                                  <span className="muted small-note">Leave open/close blank if “Closed” is ticked.</span>
                                 </div>
-                                <button
-                                  className="ghost-btn"
-                                  type="button"
-                                  onClick={() => addSpecialHour(store.id)}
-                                >
+                                <button className="ghost-btn" type="button" onClick={() => addSpecialHour(store.id)}>
                                   Add date
                                 </button>
                               </div>
-                              {(store.specialHours || []).length === 0 && (
-                                <p className="muted">No special hours set.</p>
-                              )}
+
+                              {(store.specialHours || []).length === 0 && <p className="muted">No special hours set.</p>}
+
                               <div className="special-grid">
                                 {(store.specialHours || []).map((entry, index) => (
                                   <div key={`${store.id}-special-${index}`} className="special-row">
                                     <div className="dash-duo">
                                       <label>
                                         Date
-                                        <input
-                                          type="date"
-                                          value={entry.date || ""}
-                                          onChange={(e) =>
-                                            handleSpecialChange(store.id, index, "date", e.target.value)
-                                          }
-                                        />
+                                        <input type="date" value={entry.date || ""} onChange={(e) => handleSpecialChange(store.id, index, "date", e.target.value)} />
                                       </label>
                                       <label>
                                         Label
-                                        <input
-                                          type="text"
-                                          value={entry.label || ""}
-                                          onChange={(e) =>
-                                            handleSpecialChange(store.id, index, "label", e.target.value)
-                                          }
-                                        />
+                                        <input type="text" value={entry.label || ""} onChange={(e) => handleSpecialChange(store.id, index, "label", e.target.value)} />
                                       </label>
                                     </div>
+
                                     <div className="dash-duo">
                                       <label>
                                         Open
-                                        <input
-                                          type="time"
-                                          value={entry.open || ""}
-                                          disabled={entry.closed}
-                                          onChange={(e) =>
-                                            handleSpecialChange(store.id, index, "open", e.target.value)
-                                          }
-                                        />
+                                        <input type="time" value={entry.open || ""} disabled={entry.closed} onChange={(e) => handleSpecialChange(store.id, index, "open", e.target.value)} />
                                       </label>
                                       <label>
                                         Close
-                                        <input
-                                          type="time"
-                                          value={entry.close || ""}
-                                          disabled={entry.closed}
-                                          onChange={(e) =>
-                                            handleSpecialChange(store.id, index, "close", e.target.value)
-                                          }
-                                        />
+                                        <input type="time" value={entry.close || ""} disabled={entry.closed} onChange={(e) => handleSpecialChange(store.id, index, "close", e.target.value)} />
                                       </label>
                                     </div>
+
                                     <div className="special-actions">
                                       <label className="remember-me">
-                                        <input
-                                          type="checkbox"
-                                          checked={!!entry.closed}
-                                          onChange={(e) =>
-                                            handleSpecialChange(store.id, index, "closed", e.target.checked)
-                                          }
-                                        />
+                                        <input type="checkbox" checked={!!entry.closed} onChange={(e) => handleSpecialChange(store.id, index, "closed", e.target.checked)} />
                                         <span>Closed</span>
                                       </label>
-                                      <button
-                                        className="ghost-btn danger"
-                                        type="button"
-                                        onClick={() => removeSpecial(store.id, index)}
-                                      >
+                                      <button className="ghost-btn danger" type="button" onClick={() => removeSpecial(store.id, index)}>
                                         Remove
                                       </button>
                                     </div>
@@ -1106,12 +1014,14 @@ function AdminCenterPage({
               </div>
               {feedbackStatus && <span className="status warn">{feedbackStatus}</span>}
             </div>
+
             <div className="dash-table">
               <div className="dash-table-head">
                 <span>Subject</span>
                 <span>Details</span>
                 <span>Created</span>
               </div>
+
               <div className="dash-table-body">
                 {combinedFeedback.map((item) => (
                   <div key={item.id} className="dash-table-row">
@@ -1120,6 +1030,7 @@ function AdminCenterPage({
                     <span className="muted">{item.created_at?.slice(0, 10) || "—"}</span>
                   </div>
                 ))}
+
                 {combinedFeedback.length === 0 && (
                   <div className="dash-table-row">
                     <span>No feedback yet</span>

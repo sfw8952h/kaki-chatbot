@@ -1,4 +1,4 @@
-// membership page for rewards and perks overview
+// component: MembershipPage
 import "./Pages.css"
 
 const perks = ["Free delivery above $50", "Birthday double points", "Priority support"]

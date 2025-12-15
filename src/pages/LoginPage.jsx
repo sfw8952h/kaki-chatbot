@@ -1,4 +1,4 @@
-// login page component for member authentication
+// component: LoginPage
 import { useState } from "react"
 import "./Pages.css"
 import { getSupabaseClient } from "../lib/supabaseClient"
@@ -16,6 +16,7 @@ function LoginPage({ onNavigate }) {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
+  // handles user login with Supabase
   const handleLogin = async (event) => {
     event.preventDefault()
     setStatus("")

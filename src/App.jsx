@@ -1,4 +1,4 @@
-// main application routing and layout shell
+// component: App (routing + layout shell)
 import { useCallback, useEffect, useMemo, useState } from "react"
 import "./App.css"
 import Header from "./components/Header"
@@ -54,6 +54,7 @@ function App() {
   const [feedbackEntries, setFeedbackEntries] = useState([])
   const [catalog, setCatalog] = useState([])
   const [storeLocations, setStoreLocations] = useState(seedStoreLocations)
+  const [searchTerm, setSearchTerm] = useState("")
   const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.toLowerCase()
 
   useEffect(() => {
@@ -162,26 +163,65 @@ function App() {
           .replace(/(^-|-$)/g, "")
       : `product-${Date.now()}`
 
-  const mapAdminProductToFront = (product) => {
-    const slug = product.slug || toSlug(product.name)
-    return {
-      slug,
-      name: product.name,
-      desc: product.description || "Fresh pick for you.",
-      price: product.price?.toFixed ? product.price.toFixed(2) : product.price || "0.00",
-      image:
-        product.image ||
-        "https://via.placeholder.com/420x520.png?text=Product",
-      icon: product.icon || "*",
-      accent: product.accent || "linear-gradient(135deg, #e7f5ec, #d1fae5)",
-      tag: product.category || "Grocery",
-      badge: product.outOfStock ? "Out of stock" : "In stock",
-    }
+  const computeStockBadge = (onlineStock, storeAvailability = []) => {
+    const bestStock = Math.max(
+      onlineStock || 0,
+      ...(storeAvailability || []).map((s) => Number.isFinite(s.stock) ? s.stock : 0)
+    )
+    if (bestStock <= 0) return "Out of stock"
+    if (bestStock < 5) return "Low stock"
+    return "In stock"
   }
+
+  const buildAvailability = (product) => {
+    const onlineStock = Number.isFinite(product.onlineStock)
+      ? Number(product.onlineStock)
+      : Number.isFinite(product.stock)
+        ? Number(product.stock)
+        : 0
+
+    const storeAvailability =
+      Array.isArray(product.storeAvailability) && product.storeAvailability.length > 0
+        ? product.storeAvailability
+        : storeLocations.map((store, idx) => ({
+            storeId: store.id,
+            storeName: store.name,
+            stock: Math.max(0, (onlineStock || 12) - idx * 2 - ((product.slug || "").length % 3)),
+          }))
+
+    return { onlineStock, storeAvailability }
+  }
+
+  const mapAdminProductToFront = useCallback(
+    (product) => {
+      const slug = product.slug || toSlug(product.name)
+      const { onlineStock, storeAvailability } = buildAvailability({ ...product, slug })
+      const badge = computeStockBadge(onlineStock, storeAvailability)
+      return {
+        id: product.id,
+        slug,
+        name: product.name,
+        desc: product.description || product.desc || "Fresh pick for you.",
+        price: product.price?.toFixed ? product.price.toFixed(2) : product.price || "0.00",
+        image:
+          product.image ||
+          "https://via.placeholder.com/420x520.png?text=Product",
+        icon: product.icon || "*",
+        accent: product.accent || "linear-gradient(135deg, #e7f5ec, #d1fae5)",
+        tag: product.category || product.tag || "Grocery",
+        category: product.category || product.tag || "Grocery",
+        brand: product.brand || "Kaki",
+        badge,
+        onlineStock,
+        storeAvailability,
+      }
+    },
+    [storeLocations]
+  )
 
   const loadCatalog = useCallback(async () => {
     if (!supabase) {
-      setCatalog(seedProducts)
+      setCatalog(seedProducts.map(mapAdminProductToFront))
       return
     }
     const { data, error } = await supabase
@@ -192,11 +232,11 @@ function App() {
       .order("created_at", { ascending: false })
     if (error) {
       console.warn("Unable to load products, falling back to seed data", error)
-      setCatalog(seedProducts)
+      setCatalog(seedProducts.map(mapAdminProductToFront))
       return
     }
     setCatalog((data || []).map(mapAdminProductToFront))
-  }, [])
+  }, [mapAdminProductToFront])
 
   useEffect(() => {
     loadCatalog()
@@ -243,6 +283,11 @@ function App() {
     // Reload from backend to stay in sync
     loadCatalog()
   }
+
+  const handleProductDelete = useCallback((productId) => {
+    if (!productId) return
+    setCatalog((prev) => prev.filter((product) => product.id !== productId))
+  }, [])
 
   const mapStoreRow = (row) => ({
     id: row.id || row.slug || row.name || `store-${Date.now()}`,
@@ -368,6 +413,32 @@ function App() {
     return saved
   }
 
+  const handleSearch = useCallback(
+    (value) => {
+      const nextValue = value || ""
+      setSearchTerm(nextValue)
+      if (currentPath !== "/") {
+        navigate("/")
+      }
+    },
+    [currentPath, navigate]
+  )
+
+  const filteredCatalog = useMemo(() => {
+    const term = (searchTerm || "").trim().toLowerCase()
+    if (!term) return catalog
+    return catalog.filter((product) => {
+      const fields = [
+        product.name,
+        product.tag,
+        product.category,
+        product.brand,
+        product.desc,
+      ]
+      return fields.some((field) => field && field.toLowerCase().includes(term))
+    })
+  }, [catalog, searchTerm])
+
   const mainContent = useMemo(() => {
     const role = profile?.role || "customer"
     const isAdmin = role === "admin"
@@ -402,6 +473,7 @@ function App() {
           onProposalDecision={handleProposalDecision}
           localFeedback={feedbackEntries}
           onProductUpsert={handleProductUpsert}
+          onProductDelete={handleProductDelete}
           storeLocations={storeLocations}
           onStoreUpsert={handleStoreUpsert}
         />
@@ -427,8 +499,10 @@ function App() {
         />
       )
     }
-    if (currentPath === "/history") return <PurchaseHistoryPage />
-    if (currentPath === "/tracking") return <OrderTrackingPage />
+    if (currentPath === "/history")
+      return <PurchaseHistoryPage user={sessionUser} onNavigate={navigate} />
+    if (currentPath === "/tracking")
+      return <OrderTrackingPage user={sessionUser} onNavigate={navigate} />
     if (currentPath === "/feedback")
       return <FeedbackPage onFeedbackSubmitted={handleFeedbackSubmitted} />
     if (currentPath === "/about") return <AboutPage />
@@ -454,10 +528,27 @@ function App() {
     return (
       <>
         <HeroBanner />
-        <GroceryShowcase onNavigate={navigate} products={catalog} />
+        <GroceryShowcase
+          onNavigate={navigate}
+          products={filteredCatalog}
+          searchTerm={searchTerm}
+          onSearch={handleSearch}
+        />
       </>
     )
-  }, [currentPath, sessionUser, profile, catalog, proposals, feedbackEntries, storeLocations])
+  }, [
+    currentPath,
+    sessionUser,
+    profile,
+    catalog,
+    filteredCatalog,
+    searchTerm,
+    proposals,
+    feedbackEntries,
+    storeLocations,
+    handleSearch,
+    navigate,
+  ])
 
   return (
     <div className="app">
@@ -478,6 +569,8 @@ function App() {
         user={sessionUser}
         profileName={profile?.full_name}
         onLogout={handleLogout}
+        searchTerm={searchTerm}
+        onSearch={handleSearch}
       />
       <main className="page-body">{mainContent}</main>
       <footer className="footer-links">

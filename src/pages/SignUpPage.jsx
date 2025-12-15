@@ -1,4 +1,4 @@
-// signup page component for new account creation
+// component: SignUpPage
 import { useState } from "react"
 import "./Pages.css"
 import { getSupabaseClient } from "../lib/supabaseClient"
@@ -13,6 +13,7 @@ function SignUpPage({ onNavigate }) {
   const [loading, setLoading] = useState(false)
   const [debug, setDebug] = useState("")
 
+  // handles Supabase sign-up flow
   const handleSignUp = async (event) => {
     event.preventDefault()
     setStatus("")

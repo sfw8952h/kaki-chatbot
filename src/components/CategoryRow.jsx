@@ -1,9 +1,9 @@
-// category row section listing product groups
+// component: CategoryRow (shows category cards)
 import "./CategoryRow.css"
 
 const categories = [
   {
-    name: "Fresh Produce",
+    name: "Category 1",
     icon: "🥦",
     accent: "linear-gradient(135deg, #bbf7d0, #22c55e)",
     desc: "Bot-curated harvest, ready for chat-based pickup or home delivery.",

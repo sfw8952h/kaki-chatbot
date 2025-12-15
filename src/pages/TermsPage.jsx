@@ -1,4 +1,4 @@
-// terms page component for outlining store policies
+// component: TermsPage
 import "./Pages.css"
 
 function TermsPage() {

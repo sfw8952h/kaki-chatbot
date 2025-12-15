@@ -1,4 +1,4 @@
-// product detail page displaying selected item info
+// component: ProductPage
 import "./Pages.css"
 
 function ProductPage({ slug, products }) {

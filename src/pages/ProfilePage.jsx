@@ -1,4 +1,4 @@
-// profile page to view and update account basics
+// component: ProfilePage
 import { useEffect, useMemo, useState } from "react"
 import "./Pages.css"
 import { getSupabaseClient } from "../lib/supabaseClient"
@@ -28,6 +28,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
     setAddress(meta.address || "")
   }, [user, profileName])
 
+  // ensures the user session is valid before updates
   const ensureSession = async () => {
     const { data, error: sessionError } = await supabase.auth.getSession()
     if (sessionError) throw sessionError

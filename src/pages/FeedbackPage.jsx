@@ -1,7 +1,9 @@
+// component: FeedbackPage
 import { useState } from "react"
 import "./Pages.css"
 import { getSupabaseClient } from "../lib/supabaseClient"
 
+// handles authenticated feedback submission
 function FeedbackPage({ onFeedbackSubmitted }) {
   const [subject, setSubject] = useState("")
   const [details, setDetails] = useState("")

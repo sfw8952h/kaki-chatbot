@@ -1,4 +1,4 @@
-// chatbot widget for interacting with rasa assistant
+// component: Chatbot (interacts with Rasa assistant)
 import { useMemo, useState } from "react"
 import "./Chatbot.css"
 import { FaComments } from "react-icons/fa"
