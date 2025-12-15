@@ -33,4 +33,5 @@ venv
 
 # Rasa artifacts
 rasa/.rasa
-rasa/models
+# Keep trained models in git for deployments
+!rasa/models/*.tar.gz
