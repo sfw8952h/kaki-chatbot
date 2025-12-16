@@ -106,6 +106,13 @@ function Header({ onNavigate, user, profileName, onLogout, searchTerm, onSearch,
         <a href="#">Beverages</a>
         <a href="#">Home Care</a>
         <a href="#">Snacks & Treats</a>
+        <button
+          type="button"
+          className="category-link"
+          onClick={() => onNavigate?.("/recipes")}
+        >
+          Recipes
+        </button>
       </nav>
     </header>
   )

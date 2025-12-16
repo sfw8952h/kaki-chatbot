@@ -196,10 +196,27 @@
   border: 1px solid transparent;
 }
 
+.category-nav .category-link {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  font-size: 0.95rem;
+}
+
 .category-nav a:hover {
   color: var(--primary);
   border-color: rgba(15, 23, 42, 0.15);
   background: rgba(15, 23, 42, 0.05);
+}
+
+.category-nav .category-link:hover {
+  color: var(--primary);
+  background: rgba(15, 23, 42, 0.05);
+  border: 1px solid rgba(15, 23, 42, 0.15);
 }
 
 @media (max-width: 768px) {

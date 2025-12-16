@@ -4,6 +4,7 @@ import "./App.css"
 import Header from "./components/Header"
 import HeroBanner from "./components/HeroBanner"
 import GroceryShowcase from "./components/GroceryShowcase"
+import RecipesPage from "./pages/RecipesPage"
 import Chatbot from "./components/Chatbot"
 import CartPage from "./pages/CartPage"
 import LoginPage from "./pages/LoginPage"
@@ -523,6 +524,8 @@ function App() {
           onQuantityChange={updateCartQuantity}
         />
       )
+    if (currentPath === "/recipes")
+      return <RecipesPage onAddToCart={addToCart} />
     if (currentPath === "/admin") {
       if (!isAdmin) {
         return (
