@@ -1,7 +1,139 @@
-// component: Chatbot (interacts with Rasa assistant)
-import { useMemo, useState } from "react"
+// component: Chatbot (interacts with Rasa assistant or Gemini)
+import { useCallback, useMemo, useState } from "react"
 import "./Chatbot.css"
 import { FaComments } from "react-icons/fa"
+import { GoogleGenAI } from "@google/genai"
+
+const GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
+const DEFAULT_ASSISTANT_PROMPT =
+  "You are Kaki's friendly grocery concierge. Keep replies short, specific, and helpful about store products, stock, and services."
+const FALLBACK_HISTORY_WINDOW = 12
+const MAX_CONTEXT_PRODUCTS = 20
+const MAX_CONTEXT_LOCATIONS = 3
+
+const dayLabels = {
+  monday: "Mon",
+  tuesday: "Tue",
+  wednesday: "Wed",
+  thursday: "Thu",
+  friday: "Fri",
+  saturday: "Sat",
+  sunday: "Sun",
+}
+
+const parseNumeric = (value) => {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : null
+}
+
+const summarizeProduct = (product) => {
+  if (!product) return ""
+  const name = product.name || product.title || product.slug || "Unnamed item"
+  const description =
+    (product.desc || product.description || product.summary || "")
+      .toString()
+      .trim() || "No description provided."
+  const category = product.category || product.tag || "General"
+  const parsedPrice = parseNumeric(product.price)
+  const priceText =
+    parsedPrice !== null
+      ? `$${parsedPrice.toFixed(2)}`
+      : typeof product.price === "string" && product.price.trim()
+        ? product.price.trim()
+        : ""
+  const rawStock =
+    product.onlineStock ??
+    product.online_stock ??
+    product.stock ??
+    product.quantity ??
+    null
+  const stockNumber = parseNumeric(rawStock)
+  const stockText = stockNumber !== null ? `${stockNumber}` : "Unknown"
+  const stores =
+    product.storeAvailability || product.store_availability || product.availability || []
+  const storeSummary = Array.isArray(stores)
+    ? stores
+        .slice(0, MAX_CONTEXT_LOCATIONS)
+        .map((entry) => {
+          const storeName = entry.storeName || entry.store_name || entry.location || "Store"
+          const storeStock =
+            parseNumeric(entry.stock ?? entry.qty ?? entry.quantity) ??
+            entry.stock ??
+            entry.qty ??
+            entry.quantity ??
+            "?"
+          return `${storeName}: ${storeStock}`
+        })
+        .join(", ")
+    : ""
+  const pieces = [
+    `${name} — ${description}`,
+    `Category: ${category}`,
+    priceText ? `Price: ${priceText}` : "",
+    `Online stock: ${stockText}`,
+    storeSummary ? `Stores: ${storeSummary}` : "",
+  ]
+  return pieces.filter(Boolean).join(". ")
+}
+
+const summarizeCatalog = (catalog = []) => {
+  if (!Array.isArray(catalog) || catalog.length === 0) return ""
+  return catalog
+    .filter(Boolean)
+    .slice(0, MAX_CONTEXT_PRODUCTS)
+    .map((product, index) => `${index + 1}. ${summarizeProduct(product)}`)
+    .join("\n")
+}
+
+const summarizeLocation = (location) => {
+  if (!location) return ""
+  const name = location.name || location.title || "FreshMart Location"
+  const address = location.address || "Address not listed"
+  const phone = location.phone || ""
+  const email = location.email || ""
+  const hours = location.baseHours || location.base_hours || {}
+  const hoursSummary = Object.entries(dayLabels)
+    .map(([key, label]) => {
+      const entry = hours[key]
+      if (!entry) return null
+      if (entry.closed) return `${label}: Closed`
+      return `${label}: ${entry.open}-${entry.close}`
+    })
+    .filter(Boolean)
+    .join(", ")
+  const special =
+    location.specialHours || location.special_hours || location.specialHoursNotes || []
+  const specialSummary = Array.isArray(special)
+    ? special
+        .slice(0, 3)
+        .map((entry) => {
+          if (!entry) return ""
+          const label = entry.label || "Special hours"
+          if (entry.closed) return `${entry.date}: Closed (${label})`
+          return `${entry.date}: ${entry.open}-${entry.close} (${label})`
+        })
+        .filter(Boolean)
+        .join("; ")
+    : ""
+  const pieces = [
+    `${name} — ${address}`,
+    phone ? `Phone ${phone}` : "",
+    email ? `Email ${email}` : "",
+    hoursSummary ? `Hours ${hoursSummary}` : "",
+    specialSummary ? `Upcoming ${specialSummary}` : "",
+  ]
+  return pieces.filter(Boolean).join(". ")
+}
+
+const summarizeLocations = (locations = []) => {
+  if (!Array.isArray(locations) || locations.length === 0) return ""
+  return locations
+    .filter(Boolean)
+    .slice(0, MAX_CONTEXT_LOCATIONS)
+    .map((location, index) => `${index + 1}. ${summarizeLocation(location)}`)
+    .join("\n")
+}
 
 const initialMessages = [
   {
@@ -18,7 +150,7 @@ const languages = [
   { code: "ta", label: "Tamil" },
 ]
 
-function Chatbot() {
+function Chatbot({ catalog = [], storeLocations = [] }) {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState(initialMessages)
   const [draft, setDraft] = useState("")
@@ -34,6 +166,152 @@ function Chatbot() {
   const rasaEndpoint = useMemo(
     () => import.meta.env.VITE_RASA_REST_URL || "http://localhost:5005/webhooks/rest/webhook",
     [],
+  )
+  const catalogSummary = useMemo(() => summarizeCatalog(catalog), [catalog])
+  const locationSummary = useMemo(() => summarizeLocations(storeLocations), [storeLocations])
+  const siteContext = useMemo(() => {
+    const sections = []
+    if (catalogSummary) sections.push(`Catalog:\n${catalogSummary}`)
+    if (locationSummary) sections.push(`Store locations:\n${locationSummary}`)
+    return sections.join("\n\n")
+  }, [catalogSummary, locationSummary])
+  const geminiSettings = useMemo(() => {
+    const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || "").trim()
+    if (!apiKey) return null
+    return {
+      apiKey,
+      model: (import.meta.env.VITE_GEMINI_MODEL || "gemini-2.5-flash").trim(),
+      instructions:
+        (import.meta.env.VITE_GEMINI_SYSTEM_PROMPT || "").trim() || DEFAULT_ASSISTANT_PROMPT,
+      historyWindow:
+        Number(import.meta.env.VITE_GEMINI_HISTORY_WINDOW || FALLBACK_HISTORY_WINDOW) ||
+        FALLBACK_HISTORY_WINDOW,
+    }
+  }, [])
+  const groqSettings = useMemo(() => {
+    const apiKey = (import.meta.env.VITE_GROQ_API_KEY || "").trim()
+    if (!apiKey) return null
+    return {
+      apiKey,
+      model: (import.meta.env.VITE_GROQ_MODEL || "llama-3.1-8b-instant").trim(),
+      instructions:
+        (import.meta.env.VITE_GEMINI_SYSTEM_PROMPT || "").trim() || DEFAULT_ASSISTANT_PROMPT,
+      historyWindow:
+        Number(import.meta.env.VITE_GEMINI_HISTORY_WINDOW || FALLBACK_HISTORY_WINDOW) ||
+        FALLBACK_HISTORY_WINDOW,
+    }
+  }, [])
+  const geminiClient = useMemo(() => {
+    if (!geminiSettings) return null
+    try {
+      return new GoogleGenAI({ apiKey: geminiSettings.apiKey })
+    } catch (clientError) {
+      console.warn("Gemini client failed to initialize", clientError)
+      return null
+    }
+  }, [geminiSettings])
+  const createGroundedPrompt = useCallback(
+    (promptText) => {
+      const basePrompt = (promptText || DEFAULT_ASSISTANT_PROMPT).trim() || DEFAULT_ASSISTANT_PROMPT
+      const blocks = [basePrompt]
+      if (siteContext) {
+        blocks.push(`FreshMart reference data:\n${siteContext}`)
+      }
+      blocks.push(
+        'If the answer is not covered in the reference data, reply with: "I\'m not sure about that. Please check with a FreshMart associate."',
+      )
+      return blocks.filter(Boolean).join("\n\n")
+    },
+    [siteContext],
+  )
+  const sendViaGroq = useCallback(
+    async (conversationHistory) => {
+      if (!groqSettings) {
+        throw new Error("Groq is not configured")
+      }
+      const limitedHistory = conversationHistory.slice(-groqSettings.historyWindow)
+      const messagesPayload = []
+      const instructionBlock = createGroundedPrompt(groqSettings.instructions)
+      if (instructionBlock) {
+        messagesPayload.unshift({
+          role: "system",
+          content: instructionBlock,
+        })
+      }
+      limitedHistory.forEach((message) => {
+        messagesPayload.push({
+          role: message.from === "user" ? "user" : "assistant",
+          content: message.text,
+        })
+      })
+
+      const response = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${groqSettings.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: groqSettings.model,
+          messages: messagesPayload,
+          temperature: 0.6,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorPayload = await response.text()
+        throw new Error(
+          `Groq replied with ${response.status}: ${errorPayload || "No response body"}`,
+        )
+      }
+
+      const payload = await response.json()
+      const replyText =
+        payload?.choices
+          ?.map((choice) => choice?.message?.content || "")
+          .find((entry) => entry && entry.trim())
+          ?.trim() || ""
+      return replyText || "I wasn't able to get a response from Groq."
+    },
+    [groqSettings, createGroundedPrompt],
+  )
+
+  const sendViaGemini = useCallback(
+    async (conversationHistory) => {
+      if (!geminiClient || !geminiSettings) {
+        throw new Error("Gemini is not configured")
+      }
+      const limitedHistory = conversationHistory.slice(-geminiSettings.historyWindow)
+      const contents = limitedHistory.map((message) => ({
+        role: message.from === "user" ? "user" : "model",
+        parts: [{ text: message.text }],
+      }))
+      const instructionText = createGroundedPrompt(geminiSettings.instructions)
+      if (instructionText) {
+        contents.unshift({
+          role: "user",
+          parts: [{ text: instructionText }],
+        })
+      }
+      const response = await geminiClient.models.generateContent({
+        model: geminiSettings.model,
+        contents,
+      })
+      const directText = (response?.text || "").trim()
+      if (directText) return directText
+      const fallback =
+        response?.candidates
+          ?.map((candidate) =>
+            (candidate?.content?.parts || [])
+              .map((part) => part?.text || "")
+              .filter(Boolean)
+              .join("\n"),
+          )
+          .find((entry) => entry && entry.trim())
+          ?.trim() || ""
+      return fallback || "I wasn't able to get a response from Gemini."
+    },
+    [geminiClient, geminiSettings, createGroundedPrompt],
   )
 
   const sendMessage = async () => {
@@ -51,6 +329,36 @@ function Chatbot() {
     try {
       setIsSending(true)
       const useBackend = Boolean(backendEndpoint)
+      const shouldUseGroq = !useBackend && groqSettings
+      const shouldUseGemini = !useBackend && !groqSettings && geminiClient
+      if (shouldUseGroq) {
+        const history = [...messages, userMessage]
+        const replyText = await sendViaGroq(history)
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 1,
+            text: replyText,
+            from: "bot",
+          },
+        ])
+        return
+      }
+
+      if (shouldUseGemini) {
+        const history = [...messages, userMessage]
+        const replyText = await sendViaGemini(history)
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 1,
+            text: replyText,
+            from: "bot",
+          },
+        ])
+        return
+      }
+
       const response = await fetch(useBackend ? backendEndpoint : rasaEndpoint, {
         method: "POST",
         headers: {
@@ -75,7 +383,7 @@ function Chatbot() {
       })
 
       if (!response.ok) {
-        throw new Error(`Rasa replied with ${response.status}`)
+        throw new Error(`Chat service replied with ${response.status}`)
       }
 
       const payload = await response.json()

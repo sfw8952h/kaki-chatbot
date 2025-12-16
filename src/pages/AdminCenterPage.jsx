@@ -66,6 +66,14 @@ const mapDbProduct = (p) => ({
   slug: p.slug,
 })
 
+// compress feedback text so rows stay compact
+const previewFeedbackDetails = (text, maxLength = 120) => {
+  if (!text) return "No details provided."
+  const clean = String(text).trim()
+  if (clean.length <= maxLength) return clean
+  return `${clean.slice(0, maxLength)}...`
+}
+
 // store hours keys
 const dayKeys = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
 
@@ -77,6 +85,7 @@ function AdminCenterPage({
   onProductDelete,
   storeLocations = [],
   onStoreUpsert,
+  onFeedbackDelete,
 }) {
   const [products, setProducts] = useState(initialProducts)
   const [editingId, setEditingId] = useState(null)
@@ -97,12 +106,14 @@ function AdminCenterPage({
   const [query, setQuery] = useState("")
   const [feedback, setFeedback] = useState([])
   const [feedbackStatus, setFeedbackStatus] = useState("")
+  const [feedbackDeleting, setFeedbackDeleting] = useState({})
   const [productStatus, setProductStatus] = useState("")
   const [storeDrafts, setStoreDrafts] = useState(storeLocations || [])
   const [storeMessages, setStoreMessages] = useState({})
   const [storeSaving, setStoreSaving] = useState({})
   const [storeQuery, setStoreQuery] = useState("")
   const [expandedStoreId, setExpandedStoreId] = useState(null)
+  const [expandedFeedbackId, setExpandedFeedbackId] = useState(null)
 
   // low stock list
   const lowStock = useMemo(() => products.filter((p) => p.stock <= 5 && !p.outOfStock), [products])
@@ -280,6 +291,53 @@ function AdminCenterPage({
     )
   }
 
+  // expand/collapse a feedback row
+  const toggleFeedbackDetails = (rowId) => {
+    setExpandedFeedbackId((prev) => (prev === rowId ? null : rowId))
+  }
+
+  // delete a feedback entry from Supabase (if id exists)
+  const handleFeedbackDelete = async (item) => {
+    if (!item) return
+    if (!item.id) {
+      setFeedbackStatus("Cannot delete local-only feedback entry.")
+      return
+    }
+    setFeedbackStatus("")
+    setFeedbackDeleting((prev) => ({ ...prev, [item.id]: true }))
+
+    let supabase
+    try {
+      supabase = getSupabaseClient()
+    } catch (clientErr) {
+      setFeedbackStatus("Supabase is not configured. Unable to delete feedback.")
+      setFeedbackDeleting((prev) => {
+        const next = { ...prev }
+        delete next[item.id]
+        return next
+      })
+      return
+    }
+
+    try {
+      const { error } = await supabase.from("complaints").delete().eq("id", item.id)
+      if (error) throw error
+      setFeedback((prev) => prev.filter((entry) => entry.id !== item.id))
+      setFeedbackStatus("Feedback deleted.")
+      setExpandedFeedbackId((prev) => (prev === item.id ? null : prev))
+      onFeedbackDelete?.(item.id)
+    } catch (err) {
+      console.error("Unable to delete feedback", err)
+      setFeedbackStatus(err.message || "Unable to delete feedback.")
+    } finally {
+      setFeedbackDeleting((prev) => {
+        const next = { ...prev }
+        delete next[item.id]
+        return next
+      })
+    }
+  }
+
   // filter products by query
   const filtered = useMemo(() => {
     if (!query.trim()) return products
@@ -445,7 +503,7 @@ function AdminCenterPage({
     }
   }
 
-  // load complaints (note: runs only if tab === "feedback")
+  // load complaints (note: runs only if Support tab is active)
   useEffect(() => {
     const loadFeedback = async () => {
       try {
@@ -462,7 +520,7 @@ function AdminCenterPage({
         setFeedbackStatus("Unable to load feedback.")
       }
     }
-    if (activeTab === "feedback") loadFeedback()
+    if (activeTab === "support") loadFeedback()
   }, [activeTab])
 
   // load products on mount
@@ -1023,13 +1081,51 @@ function AdminCenterPage({
               </div>
 
               <div className="dash-table-body">
-                {combinedFeedback.map((item) => (
-                  <div key={item.id} className="dash-table-row">
-                    <span>{item.subject}</span>
-                    <span>{item.details}</span>
-                    <span className="muted">{item.created_at?.slice(0, 10) || "—"}</span>
-                  </div>
-                ))}
+                {combinedFeedback.map((item, index) => {
+                  const rowId = item.id ?? `local-${index}`
+                  const isExpanded = expandedFeedbackId === rowId
+                  return (
+                    <div key={rowId} className="feedback-row-wrapper">
+                      <div
+                        className={`dash-table-row feedback-row ${isExpanded ? "expanded" : ""}`}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => toggleFeedbackDetails(rowId)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+                            event.preventDefault()
+                            toggleFeedbackDetails(rowId)
+                          }
+                        }}
+                      >
+                        <span>{item.subject || "No subject"}</span>
+                        <span className="feedback-snippet">
+                          {isExpanded ? "Expanded - full details below." : previewFeedbackDetails(item.details)}
+                        </span>
+                        <span className="muted">{item.created_at?.slice(0, 10) || "-"}</span>
+                      </div>
+                      {isExpanded && (
+                        <div className="feedback-row-expanded">
+                          <p>{item.details || "No additional details provided."}</p>
+                          <div className="feedback-actions">
+                            {item.id ? (
+                              <button
+                                type="button"
+                                className="ghost-btn danger feedback-delete-btn"
+                                onClick={() => handleFeedbackDelete(item)}
+                                disabled={!!feedbackDeleting[item.id]}
+                              >
+                                {feedbackDeleting[item.id] ? "Deleting..." : "Delete"}
+                              </button>
+                            ) : (
+                              <span className="muted small-note">Cannot delete this entry.</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
 
                 {combinedFeedback.length === 0 && (
                   <div className="dash-table-row">

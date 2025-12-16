@@ -155,6 +155,11 @@ function App() {
     ])
   }
 
+  const handleFeedbackDeleted = (id) => {
+    if (!id) return
+    setFeedbackEntries((prev) => prev.filter((entry) => entry.id !== id))
+  }
+
   const toSlug = (name) =>
     name
       ? name
@@ -476,6 +481,7 @@ function App() {
           onProductDelete={handleProductDelete}
           storeLocations={storeLocations}
           onStoreUpsert={handleStoreUpsert}
+          onFeedbackDelete={handleFeedbackDeleted}
         />
       )
     }
@@ -599,7 +605,7 @@ function App() {
           Privacy
         </button>
       </footer>
-      <Chatbot />
+      <Chatbot catalog={catalog} storeLocations={storeLocations} />
     </div>
   )
 }

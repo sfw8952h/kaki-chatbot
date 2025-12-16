@@ -839,6 +839,61 @@
   gap: 4px;
 }
 
+.feedback-row-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.feedback-row {
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.feedback-row:hover {
+  background: rgba(12, 117, 255, 0.05);
+  border-color: rgba(12, 117, 255, 0.2);
+}
+
+.feedback-row.expanded {
+  background: #f0f7ff;
+  border-color: rgba(12, 117, 255, 0.3);
+}
+
+.feedback-snippet {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.feedback-row-expanded {
+  margin: -4px 8px 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feedback-row-expanded p {
+  margin: 0;
+  color: var(--primary);
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.feedback-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.feedback-delete-btn {
+  padding: 6px 12px;
+}
+
 .dash-table-row:nth-child(odd) {
   background: rgba(15, 23, 42, 0.02);
   padding-left: 8px;

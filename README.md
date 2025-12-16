@@ -74,6 +74,40 @@ How to run:
 - If your backend requires auth, set `VITE_BACKEND_AUTH_TOKEN=<jwt>` (sent as `Authorization: Bearer ...`).
 - If `VITE_BACKEND_CHAT_URL` is not set, the widget will talk directly to Rasa via `VITE_RASA_REST_URL` (existing behavior).
 
+### Gemini (direct mode) quickstart
+
+Want to skip Rasa entirely and hit Gemini straight from the browser for quick demos?
+
+1. Grab an API key from [Google AI Studio](https://aistudio.google.com/apikey) and add the following to `.env`:
+   ```
+   VITE_GEMINI_API_KEY=your-key-here
+   VITE_GEMINI_MODEL=gemini-2.5-flash   # optional override
+   VITE_GEMINI_SYSTEM_PROMPT=You are Kaki's friendly grocery concierge. Keep answers short.
+   VITE_GEMINI_HISTORY_WINDOW=12        # how many previous turns to send
+   ```
+2. Leave `VITE_BACKEND_CHAT_URL` empty. When no backend is configured the widget prefers Gemini over Rasa whenever an API key is present.
+3. Run `npm run dev` and start chatting. Each turn is sent to Gemini with the latest `VITE_GEMINI_HISTORY_WINDOW` messages as context.
+
+> ⚠️ **Security reminder:** API keys embedded in frontend bundles are visible to users. Keep this mode for internal tests/demos and route requests through your backend for production deployments.
+
+### Groq (direct mode) quickstart
+
+Prefer Groq's hosted Llama models instead of Gemini?
+
+1. Create an API key at [console.groq.com](https://console.groq.com/keys) and update `.env`:
+   ```
+   VITE_GROQ_API_KEY=your-groq-api-key
+   VITE_GROQ_MODEL=llama-3.1-8b-instant   # or any Groq-supported chat model id
+   VITE_GEMINI_SYSTEM_PROMPT=You are Kaki's friendly grocery concierge. Keep answers short.
+   VITE_GEMINI_HISTORY_WINDOW=12
+   ```
+2. Leave `VITE_BACKEND_CHAT_URL` empty so the widget can talk directly to Groq. When a Groq key is present it takes priority over Gemini.
+3. Run `npm run dev` and start chatting. Each turn is sent to Groq's OpenAI-compatible `/chat/completions` endpoint using the configured prompt + history window for context.
+
+> ⚠️ **Security reminder:** Just like Gemini, Groq keys embedded in the frontend are visible to end users. Use this setup for local demos/testing only.
+
+> ℹ️ **Grounding:** When Groq is enabled the widget automatically forwards your current FreshMart catalog + store location data with each request and instructs the model to stay within that context. Update the catalog/store data in the app to expand what the chatbot can reference, or route traffic through your backend for additional business logic.
+
 ### Supabase integration (quick start)
 
 1. Install the client: `npm install @supabase/supabase-js`
