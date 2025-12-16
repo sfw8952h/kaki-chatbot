@@ -278,6 +278,14 @@
   border: 1px solid rgba(10, 108, 81, 0.25);
 }
 
+.grocery-cta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .grocery-cta {
   display: inline-flex;
   align-items: center;
@@ -298,11 +306,31 @@
   cursor: pointer;
 }
 
+.qty-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .qty-count {
   font-weight: 700;
   color: #0a6c51;
   min-width: 18px;
   text-align: center;
+}
+
+.add-cart-btn {
+  border: none;
+  border-radius: 999px;
+  background: #0a6c51;
+  color: #f8fafc;
+  padding: 10px 20px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.add-cart-btn:hover {
+  opacity: 0.9;
 }
 
 .availability-row {

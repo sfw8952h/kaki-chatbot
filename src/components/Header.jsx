@@ -4,7 +4,7 @@ import "./Header.css"
 import { FaSearch, FaShoppingCart } from "react-icons/fa"
 import { MdLocationOn } from "react-icons/md"
 
-function Header({ onNavigate, user, profileName, onLogout, searchTerm, onSearch }) {
+function Header({ onNavigate, user, profileName, onLogout, searchTerm, onSearch, cartCount = 0 }) {
   useEffect(() => {
     document.body.classList.remove("dark-mode")
   }, [])
@@ -93,6 +93,7 @@ function Header({ onNavigate, user, profileName, onLogout, searchTerm, onSearch 
               aria-label="View cart"
             >
               <FaShoppingCart />
+              {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
             </button>
           </div>
         </div>

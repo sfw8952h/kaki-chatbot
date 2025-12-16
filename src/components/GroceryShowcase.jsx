@@ -1,4 +1,5 @@
 // component: GroceryShowcase (category chips and availability-aware product grid)
+import { useState } from "react"
 import "./GroceryShowcase.css"
 
 const categories = [
@@ -10,8 +11,17 @@ const categories = [
   { label: "See all", hint: "Browse aisles", highlight: true },
 ]
 
-function GroceryShowcase({ onNavigate, products, searchTerm, onSearch }) {
+function GroceryShowcase({ onNavigate, products, searchTerm, onSearch, onAddToCart }) {
   const hasQuery = !!searchTerm?.trim()
+  const [quantities, setQuantities] = useState({})
+
+  const handleQuantityChange = (slug, delta, maxQty = Infinity) => {
+    setQuantities((prev) => {
+      const current = prev[slug] || 1
+      const next = Math.min(Math.max(1, current + delta), Math.max(1, maxQty))
+      return { ...prev, [slug]: next }
+    })
+  }
 
   const getAvailability = (product) => {
     const onlineStock = Number(product.onlineStock) || 0
@@ -33,10 +43,11 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch }) {
       stock <= 0
         ? "Out of stock"
         : stock < 5
-          ? `Low stock (${stock} left)`
-          : `In stock (${stock} available)`
+          ? `${stock} left`
+          : "In stock"
     const tone = stock <= 0 ? "out" : stock < 5 ? "low" : "in"
-    return { label, tone, locationLabel: stock <= 0 ? "Currently unavailable" : topStore.label }
+    const locationLabel = stock <= 0 ? "Unavailable" : topStore.label
+    return { label, tone, locationLabel, stock }
   }
 
   const resultSummary = searchTerm?.trim()
@@ -86,6 +97,8 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch }) {
         <div className="grocery-grid">
           {products.map((product) => {
             const availability = getAvailability(product)
+            const stockLimit = availability.stock || 0
+            const qty = Math.min(quantities[product.slug] || 1, Math.max(stockLimit, 1))
             return (
               <article
                 key={product.slug}
@@ -114,15 +127,44 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch }) {
                       <span className="grocery-price">${product.price}</span>
                       <span className="stock-badge">{product.badge}</span>
                     </div>
+                  </div>
+                  <div className="grocery-cta-row">
                     <div className="grocery-cta">
-                      <button className="qty-btn" aria-label="Decrease quantity">
-                        -
-                      </button>
-                      <span className="qty-count">1</span>
-                      <button className="qty-btn" aria-label="Increase quantity">
-                        +
-                      </button>
-                    </div>
+                      <button
+                        className="qty-btn"
+                        aria-label="Decrease quantity"
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        handleQuantityChange(product.slug, -1)
+                      }}
+                      disabled={qty <= 1}
+                    >
+                      -
+                    </button>
+                    <span className="qty-count">{qty}</span>
+                    <button
+                      className="qty-btn"
+                      aria-label="Increase quantity"
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        handleQuantityChange(product.slug, 1)
+                      }}
+                    >
+                      +
+                    </button>
+                    <button
+                      className="add-cart-btn"
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onAddToCart?.(product, qty)
+                      }}
+                    >
+                      Add to cart
+                    </button>
+                  </div>
                   </div>
                   <div className="availability-row">
                     <span className={`stock-dot stock-dot--${availability.tone}`} aria-hidden="true" />

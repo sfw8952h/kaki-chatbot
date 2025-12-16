@@ -134,6 +134,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+}
+
+.cart-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #0a6c51;
+  color: #f8fafc;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  padding: 0 6px;
 }
 
 .location {

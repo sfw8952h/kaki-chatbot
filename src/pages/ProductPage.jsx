@@ -1,8 +1,10 @@
 // component: ProductPage
+import { useState } from "react"
 import "./Pages.css"
 
-function ProductPage({ slug, products }) {
+function ProductPage({ slug, products, onAddToCart }) {
   const product = products?.find((p) => p.slug === slug)
+  const [quantity, setQuantity] = useState(1)
 
   if (!product) {
     return (
@@ -36,8 +38,33 @@ function ProductPage({ slug, products }) {
         <p className="product-price">${product.price}</p>
 
         <div className="product-cta-row">
-          <button className="pill-btn primary">Add to cart</button>
-          <button className="pill-btn outline">Save for later</button>
+          <div className="qty-group-lg">
+            <button
+              type="button"
+              onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+              aria-label="Decrease quantity"
+            >
+              -
+            </button>
+            <span>{quantity}</span>
+            <button
+              type="button"
+              onClick={() => setQuantity((prev) => prev + 1)}
+              aria-label="Increase quantity"
+            >
+              +
+            </button>
+          </div>
+          <button
+            className="pill-btn primary"
+            type="button"
+            onClick={() => onAddToCart?.(product, quantity)}
+          >
+            Add to cart
+          </button>
+          <button className="pill-btn outline" type="button">
+            Save for later
+          </button>
         </div>
 
         <div className="product-details">

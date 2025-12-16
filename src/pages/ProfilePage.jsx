@@ -40,6 +40,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState(navTabs[0].id)
+
   const [addresses, setAddresses] = useState([])
   const [addressesLoading, setAddressesLoading] = useState(false)
   const [addressListError, setAddressListError] = useState("")
@@ -54,49 +55,88 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
   const [addressFormError, setAddressFormError] = useState("")
   const [savingAddress, setSavingAddress] = useState(false)
 
-  useEffect(() => {
-    if (!user) return
-    const meta = user.user_metadata || {}
-    setFullName(profileName || meta.full_name || meta.name || "")
-    setPhone(meta.phone || "")
-    setAddress(meta.address || "")
-  }, [user, profileName])
-
-  // ensures the user session is valid before updates
+  // ensures the user session is valid before db updates
   const ensureSession = async () => {
+    if (!supabase) throw new Error("Supabase is not configured.")
     const { data, error: sessionError } = await supabase.auth.getSession()
     if (sessionError) throw sessionError
     if (data?.session) return data.session
 
-    // try to refresh if possible
     const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
     if (refreshError) throw refreshError
-    if (!refreshed?.session) {
-      throw new Error("Session expired. Please log in again.")
-    }
+    if (!refreshed?.session) throw new Error("Session expired. Please log in again.")
     return refreshed.session
   }
 
+  // 1) load profile data from public.profiles (source of truth)
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!supabase || !user) return
+      setError("")
+      try {
+        await ensureSession()
+
+        const { data, error: fetchError } = await supabase
+          .from("profiles")
+          .select("full_name, phone")
+          .eq("id", user.id)
+          .maybeSingle()
+
+        if (fetchError) throw fetchError
+
+        // prefer db profile, but fall back to props / auth metadata for first-time users
+        const meta = user.user_metadata || {}
+        const resolvedName = data?.full_name ?? profileName ?? meta.full_name ?? meta.name ?? ""
+        const resolvedPhone = data?.phone ?? meta.phone ?? ""
+
+        setFullName(resolvedName || "")
+        setPhone(resolvedPhone || "")
+      } catch (err) {
+        console.error("Load profile error:", err)
+        // don’t block the whole page, just show a warning
+        setError(err.message || "Unable to load profile right now.")
+        const meta = user?.user_metadata || {}
+        setFullName(profileName || meta.full_name || meta.name || "")
+        setPhone(meta.phone || "")
+      }
+    }
+
+    loadProfile()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, user])
+
+  // keep address textbox initialised from user metadata only if present
+  useEffect(() => {
+    if (!user) return
+    const meta = user.user_metadata || {}
+    setAddress(meta.address || "")
+  }, [user])
+
+  // 2) update profile in public.profiles (NOT auth metadata)
   const handleUpdate = async (event) => {
     event.preventDefault()
     setStatus("")
     setError("")
-    if (!supabase) {
-      setError("Supabase is not configured.")
-      return
-    }
-    if (!user) {
-      setError("You need to be logged in to update your profile.")
-      return
-    }
+
+    if (!supabase) return setError("Supabase is not configured.")
+    if (!user) return setError("You need to be logged in to update your profile.")
 
     setLoading(true)
     try {
       await ensureSession()
-      const { error: updateError } = await supabase.auth.updateUser({
-        data: { full_name: fullName.trim(), phone: phone.trim(), address: address.trim() },
-      })
-      if (updateError) throw updateError
+
+      const payload = {
+        id: user.id,
+        full_name: fullName.trim() || null,
+        phone: phone.trim() || null,
+        // role is not touched here (keeps existing role)
+      }
+
+      const { error: upsertError } = await supabase
+        .from("profiles")
+        .upsert(payload, { onConflict: "id" })
+
+      if (upsertError) throw upsertError
 
       setStatus("Profile updated successfully.")
       onProfileUpdated?.(fullName.trim())
@@ -116,6 +156,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
     setAddressListError("")
     setAddressesLoading(true)
     try {
+      await ensureSession()
       const { data, error: fetchError } = await supabase
         .from("addresses")
         .select("id,label,details,instructions,is_default,created_at")
@@ -125,9 +166,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
       setAddresses(data || [])
     } catch (fetchErr) {
       console.error("Load addresses error:", fetchErr)
-      setAddressListError(
-        fetchErr.message || "Unable to load addresses. Please try again in a moment.",
-      )
+      setAddressListError(fetchErr.message || "Unable to load addresses. Please try again in a moment.")
       setAddresses([])
     } finally {
       setAddressesLoading(false)
@@ -141,9 +180,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
   useEffect(() => {
     if (!address && addresses.length > 0) {
       const defaultEntry = addresses.find((entry) => entry.is_default) || addresses[0]
-      if (defaultEntry?.details) {
-        setAddress(defaultEntry.details)
-      }
+      if (defaultEntry?.details) setAddress(defaultEntry.details)
     }
   }, [addresses, address])
 
@@ -154,6 +191,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
       const hasDefault = addresses.some((entry) => entry.is_default)
       if (!hasDefault) {
         try {
+          await ensureSession()
           await supabase
             .from("addresses")
             .update({ is_default: true })
@@ -169,18 +207,13 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
   }, [addresses, refreshAddresses, supabase, user])
 
   useEffect(() => {
-    if (addresses.length === 0) {
-      setAddressForm((prev) => ({ ...prev, isDefault: true }))
-    }
+    if (addresses.length === 0) setAddressForm((prev) => ({ ...prev, isDefault: true }))
   }, [addresses.length])
 
   const orders = fallbackOrders
 
   const handleAddressInputChange = (field, value) => {
-    setAddressForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }))
+    setAddressForm((prev) => ({ ...prev, [field]: value }))
   }
 
   const handleAddAddress = async (event) => {
@@ -188,25 +221,18 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
     setAddressFormStatus("")
     setAddressFormError("")
 
-    if (!supabase) {
-      setAddressFormError("Supabase is not configured.")
-      return
-    }
-
-    if (!user) {
-      setAddressFormError("You need to be logged in to save an address.")
-      return
-    }
-
+    if (!supabase) return setAddressFormError("Supabase is not configured.")
+    if (!user) return setAddressFormError("You need to be logged in to save an address.")
     if (!addressForm.label.trim() || !addressForm.details.trim()) {
-      setAddressFormError("Label and full address are required.")
-      return
+      return setAddressFormError("Label and full address are required.")
     }
 
     const shouldBeDefault = addressForm.isDefault || addresses.every((entry) => !entry.is_default)
 
     setSavingAddress(true)
     try {
+      await ensureSession()
+
       if (shouldBeDefault) {
         await supabase.from("addresses").update({ is_default: false }).eq("user_id", user.id)
       }
@@ -220,12 +246,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
       })
       if (insertError) throw insertError
 
-      setAddressForm({
-        label: "Home",
-        details: "",
-        instructions: "",
-        isDefault: false,
-      })
+      setAddressForm({ label: "Home", details: "", instructions: "", isDefault: false })
       setAddressFormStatus("Address saved.")
       await refreshAddresses()
     } catch (err) {
@@ -241,6 +262,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
     setAddressListError("")
     setAddressActionState({ id: addressId, type: "delete" })
     try {
+      await ensureSession()
       const { error: deleteError } = await supabase
         .from("addresses")
         .delete()
@@ -261,12 +283,15 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
     setAddressListError("")
     setAddressActionState({ id: addressId, type: "default" })
     try {
+      await ensureSession()
       await supabase.from("addresses").update({ is_default: false }).eq("user_id", user.id)
+
       const { error: defaultError } = await supabase
         .from("addresses")
         .update({ is_default: true })
         .eq("id", addressId)
         .eq("user_id", user.id)
+
       if (defaultError) throw defaultError
       await refreshAddresses()
     } catch (err) {
@@ -299,14 +324,15 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
           <p className="eyebrow">Account overview</p>
           <h3>Personal information</h3>
           <p className="muted">
-            Update your name, contact, or delivery details. Email is used for sign-in and can be
-            changed from the security portal.
+            Update your name and contact details. Email is used for sign-in and can be changed from
+            the security portal.
           </p>
         </div>
         <div className="profile-avatar">
           <span>{(fullName || user.email || "?").charAt(0).toUpperCase()}</span>
         </div>
       </div>
+
       <form className="profile-form" onSubmit={handleUpdate}>
         <div className="form-row">
           <label>
@@ -340,16 +366,6 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
           </label>
         </div>
 
-        <label>
-          Delivery address
-          <textarea
-            placeholder="Street, unit, postal code"
-            value={address}
-            onChange={(event) => setAddress(event.target.value)}
-            rows={3}
-          />
-        </label>
-
         {status && <p className="auth-status success">{status}</p>}
         {error && <p className="auth-status error">{error}</p>}
 
@@ -357,11 +373,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
           <button className="primary-btn zoom-on-hover" type="submit" disabled={loading}>
             {loading ? "Saving..." : "Save changes"}
           </button>
-          <button
-            className="ghost-btn zoom-on-hover"
-            type="button"
-            onClick={() => onNavigate?.("/")}
-          >
+          <button className="ghost-btn zoom-on-hover" type="button" onClick={() => onNavigate?.("/")}>
             Back to home
           </button>
         </div>
@@ -430,6 +442,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
           </p>
         </div>
       </div>
+
       {addressListError && <p className="auth-status error">{addressListError}</p>}
       {addressesLoading ? (
         <p className="muted">Loading addresses...</p>
@@ -439,12 +452,12 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
             <div key={entry.id} className="address-tile">
               <div>
                 <p className="tile-title">
-                  {entry.label}{" "}
-                  {entry.is_default && <span className="pill-chip ghost">Default</span>}
+                  {entry.label} {entry.is_default && <span className="pill-chip ghost">Default</span>}
                 </p>
                 <p className="tile-body">{entry.details}</p>
                 {entry.instructions && <p className="tile-note">{entry.instructions}</p>}
               </div>
+
               <div className="address-row-actions">
                 {!entry.is_default && (
                   <button
@@ -467,6 +480,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
               </div>
             </div>
           ))}
+
           {addresses.length === 0 && (
             <p className="muted">No saved addresses yet. Add one to speed up checkout.</p>
           )}
@@ -485,6 +499,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
               onChange={(event) => handleAddressInputChange("label", event.target.value)}
             />
           </label>
+
           <label className="address-checkbox">
             <input
               type="checkbox"
@@ -494,6 +509,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
             Set as default
           </label>
         </div>
+
         <label>
           Full address
           <textarea
@@ -503,6 +519,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
             onChange={(event) => handleAddressInputChange("details", event.target.value)}
           />
         </label>
+
         <label>
           Delivery instructions (optional)
           <textarea
@@ -512,8 +529,10 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
             onChange={(event) => handleAddressInputChange("instructions", event.target.value)}
           />
         </label>
+
         {addressFormStatus && <p className="auth-status success">{addressFormStatus}</p>}
         {addressFormError && <p className="auth-status error">{addressFormError}</p>}
+
         <div className="address-actions">
           <button className="primary-btn zoom-on-hover" type="submit" disabled={savingAddress}>
             {savingAddress ? "Saving..." : "Save address"}
@@ -535,6 +554,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
           View all orders
         </button>
       </div>
+
       <div className="orders-list">
         {orders.map((order) => (
           <div key={order.id} className="order-row">

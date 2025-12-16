@@ -108,6 +108,12 @@ Prefer Groq's hosted Llama models instead of Gemini?
 
 > ℹ️ **Grounding:** When Groq is enabled the widget automatically forwards your current FreshMart catalog + store location data with each request and instructs the model to stay within that context. Update the catalog/store data in the app to expand what the chatbot can reference, or route traffic through your backend for additional business logic.
 
+### Chatbot-assisted navigation
+
+- The chatbot can open common sections (home, cart, membership, store locations, specific products, etc.) when a shopper asks. Under the hood the assistant appends a hidden directive like `[[NAV:/membership]]` or `[[NAV:/product/heirloom-tomatoes]]`, and the widget routes to that page automatically.
+- Routes are restricted to the list rendered in the app (plus product slugs from the current catalog). Keep slugs accurate if you want product detail jumps to work—e.g., `heirloom-tomatoes` maps to `/product/heirloom-tomatoes`.
+- To add/remove destinations, edit `STATIC_NAV_TARGETS` in `src/components/Chatbot.jsx` or adjust the catalog data that is passed into the widget.
+
 ### Supabase integration (quick start)
 
 1. Install the client: `npm install @supabase/supabase-js`

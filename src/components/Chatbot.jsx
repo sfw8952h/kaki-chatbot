@@ -10,6 +10,25 @@ const DEFAULT_ASSISTANT_PROMPT =
 const FALLBACK_HISTORY_WINDOW = 12
 const MAX_CONTEXT_PRODUCTS = 20
 const MAX_CONTEXT_LOCATIONS = 3
+const MAX_PRODUCT_NAV_LINKS = 24
+const NAV_DIRECTIVE_REGEX = /\[\[NAV:([^\]\s]+)\]\]/gi
+const STATIC_NAV_TARGETS = [
+  { label: "Home", path: "/" },
+  { label: "Sign up", path: "/signup" },
+  { label: "Log in", path: "/login" },
+  { label: "Cart", path: "/cart" },
+  { label: "Admin Center", path: "/admin" },
+  { label: "Supplier Center", path: "/supplier" },
+  { label: "Purchase history", path: "/history" },
+  { label: "Order tracking", path: "/tracking" },
+  { label: "Feedback", path: "/feedbackpage" },
+  { label: "About", path: "/about" },
+  { label: "Store locations", path: "/locations" },
+  { label: "Membership", path: "/membership" },
+  { label: "Terms", path: "/terms" },
+  { label: "Privacy", path: "/privacy" },
+  { label: "Profile", path: "/profile" },
+]
 
 const dayLabels = {
   monday: "Mon",
@@ -150,7 +169,7 @@ const languages = [
   { code: "ta", label: "Tamil" },
 ]
 
-function Chatbot({ catalog = [], storeLocations = [] }) {
+function Chatbot({ catalog = [], storeLocations = [], onNavigate = () => {} }) {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState(initialMessages)
   const [draft, setDraft] = useState("")
@@ -175,6 +194,29 @@ function Chatbot({ catalog = [], storeLocations = [] }) {
     if (locationSummary) sections.push(`Store locations:\n${locationSummary}`)
     return sections.join("\n\n")
   }, [catalogSummary, locationSummary])
+  const productNavigationTargets = useMemo(() => {
+    if (!Array.isArray(catalog)) return []
+    return catalog
+      .filter((product) => product && product.slug)
+      .slice(0, MAX_PRODUCT_NAV_LINKS)
+      .map((product) => ({
+        path: `/product/${product.slug}`,
+        label: product.name || product.slug,
+      }))
+  }, [catalog])
+  const allowedNavigationSet = useMemo(() => {
+    const set = new Set()
+    STATIC_NAV_TARGETS.forEach((target) => set.add(target.path))
+    productNavigationTargets.forEach((target) => set.add(target.path))
+    return set
+  }, [productNavigationTargets])
+  const navigationSummary = useMemo(() => {
+    const staticLines = STATIC_NAV_TARGETS.map((target) => `- ${target.label}: ${target.path}`)
+    const productLines = productNavigationTargets.map(
+      (target) => `- ${target.label}: ${target.path}`,
+    )
+    return [...staticLines, ...productLines].join("\n")
+  }, [productNavigationTargets])
   const geminiSettings = useMemo(() => {
     const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || "").trim()
     if (!apiKey) return null
@@ -210,6 +252,32 @@ function Chatbot({ catalog = [], storeLocations = [] }) {
       return null
     }
   }, [geminiSettings])
+  const stripNavigationDirectives = useCallback((text) => {
+    if (typeof text !== "string") {
+      return { cleaned: "", directives: [] }
+    }
+    const directives = []
+    const cleaned = text.replace(NAV_DIRECTIVE_REGEX, (_, rawPath) => {
+      const normalized = (rawPath || "").trim()
+      if (normalized) {
+        const ensured = normalized.startsWith("/") ? normalized : `/${normalized}`
+        directives.push(ensured)
+      }
+      return ""
+    })
+    return { cleaned: cleaned.trim(), directives }
+  }, [])
+  const safeNavigate = useCallback(
+    (rawPath) => {
+      if (!rawPath) return
+      const normalized = rawPath.startsWith("/") ? rawPath : `/${rawPath}`
+      if (!allowedNavigationSet.has(normalized)) return
+      if (typeof onNavigate === "function") {
+        onNavigate(normalized)
+      }
+    },
+    [allowedNavigationSet, onNavigate],
+  )
   const createGroundedPrompt = useCallback(
     (promptText) => {
       const basePrompt = (promptText || DEFAULT_ASSISTANT_PROMPT).trim() || DEFAULT_ASSISTANT_PROMPT
@@ -217,12 +285,17 @@ function Chatbot({ catalog = [], storeLocations = [] }) {
       if (siteContext) {
         blocks.push(`FreshMart reference data:\n${siteContext}`)
       }
+      if (navigationSummary) {
+        blocks.push(
+          `Allowed navigation commands:\n${navigationSummary}\nWhen the shopper asks to open any section above, confirm in your reply and append [[NAV:/path]] using the exact path shown. Do not invent routes or slugs, and use at most one NAV token per response.`,
+        )
+      }
       blocks.push(
         'If the answer is not covered in the reference data, reply with: "I\'m not sure about that. Please check with a FreshMart associate."',
       )
       return blocks.filter(Boolean).join("\n\n")
     },
-    [siteContext],
+    [siteContext, navigationSummary],
   )
   const sendViaGroq = useCallback(
     async (conversationHistory) => {
@@ -271,9 +344,11 @@ function Chatbot({ catalog = [], storeLocations = [] }) {
           ?.map((choice) => choice?.message?.content || "")
           .find((entry) => entry && entry.trim())
           ?.trim() || ""
-      return replyText || "I wasn't able to get a response from Groq."
+      const { cleaned, directives } = stripNavigationDirectives(replyText)
+      directives.forEach(safeNavigate)
+      return cleaned || replyText || "I wasn't able to get a response from Groq."
     },
-    [groqSettings, createGroundedPrompt],
+    [groqSettings, createGroundedPrompt, safeNavigate, stripNavigationDirectives],
   )
 
   const sendViaGemini = useCallback(
@@ -298,7 +373,11 @@ function Chatbot({ catalog = [], storeLocations = [] }) {
         contents,
       })
       const directText = (response?.text || "").trim()
-      if (directText) return directText
+      if (directText) {
+        const { cleaned, directives } = stripNavigationDirectives(directText)
+        directives.forEach(safeNavigate)
+        if (cleaned) return cleaned
+      }
       const fallback =
         response?.candidates
           ?.map((candidate) =>
@@ -309,9 +388,11 @@ function Chatbot({ catalog = [], storeLocations = [] }) {
           )
           .find((entry) => entry && entry.trim())
           ?.trim() || ""
-      return fallback || "I wasn't able to get a response from Gemini."
+      const { cleaned, directives } = stripNavigationDirectives(fallback)
+      directives.forEach(safeNavigate)
+      return cleaned || fallback || "I wasn't able to get a response from Gemini."
     },
-    [geminiClient, geminiSettings, createGroundedPrompt],
+    [geminiClient, geminiSettings, createGroundedPrompt, safeNavigate, stripNavigationDirectives],
   )
 
   const sendMessage = async () => {
@@ -390,10 +471,14 @@ function Chatbot({ catalog = [], storeLocations = [] }) {
       const replies = (() => {
         if (useBackend) {
           const replyText = payload?.reply
+          const { cleaned, directives } = stripNavigationDirectives(
+            replyText || "I'm here, but I didn't receive a reply from the assistant.",
+          )
+          directives.forEach(safeNavigate)
           return [
             {
               id: Date.now() + 1,
-              text: replyText || "I'm here, but I didn't receive a reply from the assistant.",
+              text: cleaned || replyText || "I'm here, but I didn't receive a reply from the assistant.",
               from: "bot",
             },
           ]
@@ -404,11 +489,16 @@ function Chatbot({ catalog = [], storeLocations = [] }) {
               .filter((entry) => entry && (entry.text || entry.image))
               .map((entry, index) => ({
                 id: Date.now() + index + 1,
-                text:
-                  entry.text ||
-                  (entry.image
+                text: (() => {
+                  if (entry.text) {
+                    const { cleaned, directives } = stripNavigationDirectives(entry.text)
+                    directives.forEach(safeNavigate)
+                    return cleaned || entry.text
+                  }
+                  return entry.image
                     ? "The assistant shared an image (display in UI to show it)."
-                    : "The assistant responded."),
+                    : "The assistant responded."
+                })(),
                 from: "bot",
               }))
           : [

@@ -1,18 +1,17 @@
 // component: CartPage
 import "./Pages.css"
 
-const cartItems = [
-  { name: "Sample", qty: "1 crate", price: "54 SGD" },
-  { name: "Sample", qty: "2 bottles", price: "28 SGD" },
-  { name: "Sample", qty: "1 loaf", price: "12 SGD" },
-]
-
-function CartPage({ user, profileName, onNavigate }) {
-  const subtotal = cartItems.reduce(
-    (sum, item) => sum + Number(item.price.replace(/[^\d.]/g, "")),
-    0
-  )
-
+function CartPage({
+  user,
+  profileName,
+  onNavigate,
+  items = [],
+  subtotal = 0,
+  onRemove,
+  onQuantityChange,
+}) {
+  const isEmpty = items.length === 0
+  const formattedSubtotal = subtotal.toFixed(2)
   return (
     <section className="page-panel cart-page">
       <p className="eyebrow">Cart preview</p>
@@ -44,15 +43,58 @@ function CartPage({ user, profileName, onNavigate }) {
           )}
 
           <div className="cart-items">
-            {cartItems.map((item) => (
-              <article key={item.name} className="cart-item">
-                <div>
-                  <strong>{item.name}</strong>
-                  <p>{item.qty}</p>
-                </div>
-                <span>{item.price}</span>
-              </article>
-            ))}
+            {isEmpty ? (
+              <div className="empty-cart">
+                <p>Your cart is empty. Add your favourite produce to get started.</p>
+                <button className="primary-btn zoom-on-hover" onClick={() => onNavigate?.("/")}>
+                  Browse products
+                </button>
+              </div>
+            ) : (
+              items.map((item) => (
+                <article key={item.slug} className="cart-item">
+                  <div className="cart-item-main">
+                    {item.thumbnail && (
+                      <img src={item.thumbnail} alt={item.name} className="cart-thumb" />
+                    )}
+                    <div>
+                      <strong>{item.name}</strong>
+                      <p>${item.price.toFixed(2)} each</p>
+                    </div>
+                    <span className="cart-line-total">
+                      ${(item.price * item.quantity).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="cart-item-actions">
+                    <div className="qty-group">
+                      <button
+                        type="button"
+                        onClick={() => onQuantityChange?.(item.slug, item.quantity - 1)}
+                        disabled={item.quantity <= 1}
+                        aria-label="Decrease quantity"
+                      >
+                        -
+                      </button>
+                      <span>{item.quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => onQuantityChange?.(item.slug, item.quantity + 1)}
+                        aria-label="Increase quantity"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <button
+                      className="ghost-btn danger"
+                      type="button"
+                      onClick={() => onRemove?.(item.slug)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </article>
+              ))
+            )}
           </div>
         </div>
 
@@ -60,7 +102,7 @@ function CartPage({ user, profileName, onNavigate }) {
           <h3>Order summary</h3>
           <div className="summary-row">
             <span>Subtotal</span>
-            <strong>{subtotal} SGD</strong>
+            <strong>${formattedSubtotal}</strong>
           </div>
           <div className="summary-row">
             <span>Promotions</span>
@@ -70,7 +112,13 @@ function CartPage({ user, profileName, onNavigate }) {
             <span>Shipping</span>
             <strong>Calculated later</strong>
           </div>
-          <button className="primary-btn zoom-on-hover">Checkout securely</button>
+          <button
+            className="primary-btn zoom-on-hover"
+            disabled={isEmpty}
+            type="button"
+          >
+            {isEmpty ? "Add items to checkout" : "Checkout securely"}
+          </button>
         </aside>
       </div>
     </section>

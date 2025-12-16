@@ -24,6 +24,12 @@ import { supabase } from "./lib/supabaseClient"
 import { products as seedProducts } from "./data/products"
 import { storeLocations as seedStoreLocations } from "./data/locations"
 
+const toPriceNumber = (value) => {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""))
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 function App() {
   const rawBasePath = import.meta.env.BASE_URL || "/"
   const basePath =
@@ -55,6 +61,7 @@ function App() {
   const [catalog, setCatalog] = useState([])
   const [storeLocations, setStoreLocations] = useState(seedStoreLocations)
   const [searchTerm, setSearchTerm] = useState("")
+  const [cartItems, setCartItems] = useState([])
   const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.toLowerCase()
 
   useEffect(() => {
@@ -159,6 +166,59 @@ function App() {
     if (!id) return
     setFeedbackEntries((prev) => prev.filter((entry) => entry.id !== id))
   }
+
+  const addToCart = useCallback((product, quantity = 1) => {
+    if (!product) return
+    const normalizedQuantity = Math.max(1, Number(quantity) || 1)
+    const unitPrice = toPriceNumber(product.price)
+    setCartItems((prev) => {
+      const existing = prev.find((item) => item.slug === product.slug)
+      if (existing) {
+        return prev.map((item) =>
+          item.slug === product.slug
+            ? { ...item, quantity: item.quantity + normalizedQuantity }
+            : item,
+        )
+      }
+      return [
+        ...prev,
+        {
+          slug: product.slug,
+          name: product.name,
+          thumbnail: product.image,
+          price: unitPrice,
+          quantity: normalizedQuantity,
+        },
+      ]
+    })
+  }, [])
+
+  const removeFromCart = useCallback((slug) => {
+    if (!slug) return
+    setCartItems((prev) => prev.filter((item) => item.slug !== slug))
+  }, [])
+
+  const updateCartQuantity = useCallback((slug, nextQuantity) => {
+    setCartItems((prev) =>
+      prev
+        .map((item) =>
+          item.slug === slug
+            ? { ...item, quantity: Math.max(0, Number(nextQuantity) || 0) }
+            : item,
+        )
+        .filter((item) => item.quantity > 0),
+    )
+  }, [])
+
+  const cartSubtotal = useMemo(
+    () => cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
+    [cartItems],
+  )
+
+  const cartCount = useMemo(
+    () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
+    [cartItems],
+  )
 
   const toSlug = (name) =>
     name
@@ -457,6 +517,10 @@ function App() {
           onNavigate={navigate}
           user={sessionUser}
           profileName={profile?.full_name}
+          items={cartItems}
+          subtotal={cartSubtotal}
+          onRemove={removeFromCart}
+          onQuantityChange={updateCartQuantity}
         />
       )
     if (currentPath === "/admin") {
@@ -529,7 +593,7 @@ function App() {
       )
     if (currentPath.startsWith("/product/")) {
       const slug = currentPath.replace("/product/", "")
-      return <ProductPage slug={slug} products={catalog} />
+      return <ProductPage slug={slug} products={catalog} onAddToCart={addToCart} />
     }
     return (
       <>
@@ -539,6 +603,7 @@ function App() {
           products={filteredCatalog}
           searchTerm={searchTerm}
           onSearch={handleSearch}
+          onAddToCart={addToCart}
         />
       </>
     )
@@ -554,6 +619,11 @@ function App() {
     storeLocations,
     handleSearch,
     navigate,
+    cartItems,
+    cartSubtotal,
+    addToCart,
+    removeFromCart,
+    updateCartQuantity,
   ])
 
   return (
@@ -577,6 +647,7 @@ function App() {
         onLogout={handleLogout}
         searchTerm={searchTerm}
         onSearch={handleSearch}
+        cartCount={cartCount}
       />
       <main className="page-body">{mainContent}</main>
       <footer className="footer-links">
@@ -605,7 +676,11 @@ function App() {
           Privacy
         </button>
       </footer>
-      <Chatbot catalog={catalog} storeLocations={storeLocations} />
+      <Chatbot
+        catalog={catalog}
+        storeLocations={storeLocations}
+        onNavigate={navigate}
+      />
     </div>
   )
 }
