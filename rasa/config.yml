@@ -11,7 +11,7 @@ pipeline:
   min_ngram: 3
   max_ngram: 17
 - name: DIETClassifier
-  epochs: 80
+  epochs: 1
 - name: EntitySynonymMapper
 
 policies:
