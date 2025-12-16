@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-# Render provides $PORT; default to 8080 for local use.
-PORT="${PORT:-8080}"
+# Hard-code port 8080 (ignore injected PORT). Render health checks may fail if they expect a different port.
+PORT="8080"
 
 echo "Listing /app/models before start:"
 ls -lah /app/models || true
