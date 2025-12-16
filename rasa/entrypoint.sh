@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-# Hard-code port 8080 (ignore injected PORT). Render health checks may fail if they expect a different port.
-PORT="8080"
+# Use Render-injected PORT (default to 10000 if unset).
+PORT="${PORT:-10000}"
 
 echo "Listing /app/models before start:"
 ls -lah /app/models || true
