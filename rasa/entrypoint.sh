@@ -10,7 +10,7 @@ ls -lah /app/models || true
 exec rasa run \
   --enable-api \
   --cors "*" \
-  --host "0.0.0.0" \
+  --interface "0.0.0.0" \
   --port "$PORT" \
   --endpoints endpoints.yml \
   --model /app/models/production.tar.gz
