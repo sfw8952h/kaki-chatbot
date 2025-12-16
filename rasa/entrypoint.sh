@@ -11,4 +11,5 @@ exec rasa run \
   --enable-api \
   --cors "*" \
   --port "$PORT" \
-  --endpoints endpoints.yml
+  --endpoints endpoints.yml \
+  --model /app/models/production.tar.gz
