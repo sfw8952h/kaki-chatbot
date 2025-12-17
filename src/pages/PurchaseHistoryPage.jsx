@@ -1,14 +1,7 @@
 // component: PurchaseHistoryPage
 import "./Pages.css"
 
-const purchases = [
-  { id: "#2041", item: "Weekly fresh box", date: "Dec 03", total: "58.90", status: "Delivered" },
-  { id: "#2040", item: "Pantry refill pack", date: "Nov 27", total: "34.20", status: "Delivered" },
-  { id: "#2039", item: "Dairy-free bundle", date: "Nov 20", total: "26.10", status: "Refunded" },
-  { id: "#2038", item: "Bakery sampler", date: "Nov 12", total: "18.50", status: "Delivered" },
-]
-
-function PurchaseHistoryPage({ user, onNavigate }) {
+function PurchaseHistoryPage({ user, onNavigate, orders = [] }) {
   if (!user) {
     return (
       <section className="page-panel">
@@ -22,43 +15,70 @@ function PurchaseHistoryPage({ user, onNavigate }) {
     )
   }
 
+  const hasOrders = orders.length > 0
+
   return (
     <section className="page-panel">
       <div className="board-top">
         <div>
           <p className="dash-label">Purchase history</p>
           <strong>Your past orders</strong>
-          <p className="guest-detail">Quickly reorder favorites or request a refund.</p>
+          <p className="guest-detail">
+            Quickly reorder favorites or request help with an existing order.
+          </p>
         </div>
       </div>
 
-      <div className="product-table compact">
-        <div className="product-header">
-          <span>Order</span>
-          <span>Items</span>
-          <span>Date</span>
-          <span>Total</span>
-          <span>Status</span>
-          <span>Actions</span>
+      {!hasOrders ? (
+        <div className="empty-cart">
+          <p>You don’t have any orders yet.</p>
+          <button className="primary-btn zoom-on-hover" type="button" onClick={() => onNavigate?.("/")}>
+            Start shopping
+          </button>
         </div>
-        <div className="product-rows">
-          {purchases.map((p) => (
-            <div key={p.id} className="product-row">
-              <span>{p.id}</span>
-              <span>{p.item}</span>
-              <span>{p.date}</span>
-              <span className="price-chip">${p.total}</span>
-              <span className={p.status === "Delivered" ? "status success" : "status warn"}>
-                {p.status}
-              </span>
-              <div className="action-badges">
-                <button className="badge-btn primary">Reorder</button>
-                <button className="badge-btn danger">Refund</button>
-              </div>
-            </div>
-          ))}
+      ) : (
+        <div className="product-table compact">
+          <div className="product-header">
+            <span>Order</span>
+            <span>Items</span>
+            <span>Date</span>
+            <span>Total</span>
+            <span>Status</span>
+            <span>Actions</span>
+          </div>
+          <div className="product-rows">
+            {orders.map((order) => {
+              const orderItems = order.order_items ?? order.items ?? []
+              const summary =
+                orderItems.length > 0
+                  ? orderItems
+                      .map((item) => `${item.quantity}× ${item.product_name || item.name}`)
+                      .join(", ")
+                  : "No items recorded"
+              const orderDate = order.placed_at || order.date || ""
+              return (
+                <div key={order.id} className="product-row">
+                  <span>{order.id}</span>
+                  <span>{summary}</span>
+                  <span>{orderDate}</span>
+                  <span className="price-chip">${order.total}</span>
+                  <span className={order.status === "Delivered" ? "status success" : "status warn"}>
+                    {order.status}
+                  </span>
+                  <div className="action-badges">
+                    <button className="badge-btn primary" type="button" onClick={() => onNavigate?.("/")}>
+                      Reorder
+                    </button>
+                    <button className="badge-btn danger" type="button">
+                      Help
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </section>
   )
 }

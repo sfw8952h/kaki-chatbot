@@ -64,6 +64,7 @@ function App() {
   const [searchTerm, setSearchTerm] = useState("")
   const [cartItems, setCartItems] = useState([])
   const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.toLowerCase()
+  const [orders, setOrders] = useState([])
 
   useEffect(() => {
     const handlePop = () => setCurrentPath(normalizePath(window.location.pathname))
@@ -304,9 +305,97 @@ function App() {
     setCatalog((data || []).map(mapAdminProductToFront))
   }, [mapAdminProductToFront])
 
+  const loadUserOrders = useCallback(async () => {
+    if (!supabase || !sessionUser) {
+      setOrders([])
+      return
+    }
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*, order_items(*)")
+      .eq("profile_id", sessionUser.id)
+      .order("placed_at", { ascending: false })
+    if (error) {
+      console.warn("Unable to load orders", error)
+      return
+    }
+    setOrders(data ?? [])
+  }, [sessionUser])
+
   useEffect(() => {
     loadCatalog()
   }, [loadCatalog])
+
+  useEffect(() => {
+    loadUserOrders()
+  }, [loadUserOrders])
+
+  const handlePlaceOrder = useCallback(
+    async (orderPayload) => {
+      const timestamp = new Date()
+      const fallbackOrder = {
+        id: orderPayload.id || `#${timestamp.getTime()}`,
+        items: orderPayload.items ?? [],
+        total: orderPayload.total ?? "0.00",
+        date:
+          orderPayload.date ||
+          timestamp.toLocaleString("en-US", {
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "numeric",
+          }),
+        status: orderPayload.status || "Processing",
+      }
+      if (!sessionUser) {
+        setOrders((prev) => [fallbackOrder, ...prev])
+        setCartItems([])
+        return
+      }
+
+      try {
+        const { data: orderData, error: orderError } = await supabase
+          .from("orders")
+          .insert({
+            profile_id: sessionUser.id,
+            total: toPriceNumber(orderPayload.total),
+            status: "Processing",
+          })
+          .select("id, status, total, placed_at")
+          .single()
+
+        if (orderError) {
+          console.warn("Unable to create order", orderError)
+          setOrders((prev) => [fallbackOrder, ...prev])
+          setCartItems([])
+          return
+        }
+
+        const itemsPayload = (orderPayload.items ?? []).map((item) => ({
+          order_id: orderData.id,
+          product_slug: item.slug,
+          product_name: item.name,
+          unit_price: toPriceNumber(item.price),
+          quantity: item.quantity,
+        }))
+
+        if (itemsPayload.length) {
+          const { error: itemsError } = await supabase.from("order_items").insert(itemsPayload)
+          if (itemsError) {
+            console.warn("Unable to insert order items", itemsError)
+          }
+        }
+
+        await loadUserOrders()
+      } catch (error) {
+        console.warn("Order processing failed", error)
+        setOrders((prev) => [fallbackOrder, ...prev])
+      } finally {
+        setCartItems([])
+      }
+    },
+    [sessionUser, loadUserOrders],
+  )
 
   const upsertCatalogLocally = (product) => {
     const mapped = mapAdminProductToFront(product)
@@ -522,6 +611,7 @@ function App() {
           subtotal={cartSubtotal}
           onRemove={removeFromCart}
           onQuantityChange={updateCartQuantity}
+          onCheckout={handlePlaceOrder}
         />
       )
     if (currentPath === "/recipes")
@@ -573,7 +663,13 @@ function App() {
       )
     }
     if (currentPath === "/history")
-      return <PurchaseHistoryPage user={sessionUser} onNavigate={navigate} />
+      return (
+        <PurchaseHistoryPage
+          user={sessionUser}
+          onNavigate={navigate}
+          orders={orders}
+        />
+      )
     if (currentPath === "/tracking")
       return <OrderTrackingPage user={sessionUser} onNavigate={navigate} />
     if (currentPath === "/feedback")
@@ -627,6 +723,7 @@ function App() {
     addToCart,
     removeFromCart,
     updateCartQuantity,
+    orders,
   ])
 
   return (

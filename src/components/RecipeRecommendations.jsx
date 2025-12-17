@@ -1,51 +1,102 @@
-﻿import { useMemo, useState } from "react"
+﻿import { useEffect, useState } from "react"
 import "./RecipeRecommendations.css"
 
-const defaultFilters = {
-  ingredients: "",
-  diet: "any",
+const API_BASE = "https://www.themealdb.com/api/json/v1/1"
+const DEFAULT_LETTER = "a"
+function buildIngredientList(meal) {
+  const items = []
+  for (let index = 1; index <= 20; index += 1) {
+    const ingredient = meal[`strIngredient${index}`]
+    const measure = meal[`strMeasure${index}`]
+    if (ingredient && ingredient.trim()) {
+      items.push([measure?.trim(), ingredient.trim()].filter(Boolean).join(" "))
+    }
+  }
+  return items
 }
 
-const recipes = [
-  {
-    id: "garlic-butter-chicken",
-    title: "One-pan garlic butter chicken",
-    cookTime: "20 min",
-    servings: "2 servings",
-    rating: 4.7,
-    tags: ["Chicken", "Skillet", "Low effort"],
-    image: "https://images.unsplash.com/photo-1604908177334-524b0a72a568?auto=format&fit=crop&w=600&q=60",
-  },
-  {
-    id: "herb-salmon",
-    title: "Lemon herb baked salmon",
-    cookTime: "25 min",
-    servings: "2 servings",
-    rating: 4.8,
-    tags: ["Seafood", "High protein"],
-    image: "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=600&q=60",
-  },
-  {
-    id: "veggie-pasta",
-    title: "Creamy veggie pasta bowl",
-    cookTime: "18 min",
-    servings: "2 servings",
-    rating: 4.6,
-    tags: ["Vegetarian", "Pasta", "Comfort food"],
-    image: "https://images.unsplash.com/photo-1528712306091-ed0763094c98?auto=format&fit=crop&w=600&q=60",
-  },
-]
+function normalizeMeal(meal) {
+  return {
+    id: meal.idMeal,
+    title: meal.strMeal,
+    image: meal.strMealThumb,
+    category: meal.strCategory,
+    area: meal.strArea,
+    instructions: meal.strInstructions,
+    tags: meal.strTags ? meal.strTags.split(",").map((tag) => tag.trim()).filter(Boolean) : [],
+    youtube: meal.strYoutube,
+    ingredients: buildIngredientList(meal),
+  }
+}
 
 function RecipeRecommendations({ onAddToCart }) {
-  const [filters, setFilters] = useState(defaultFilters)
   const [query, setQuery] = useState("")
+  const [meals, setMeals] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [selectedMeal, setSelectedMeal] = useState(null)
 
-  const filteredRecipes = useMemo(() => {
-    const term = query.trim().toLowerCase()
-    return recipes.filter((recipe) =>
-      !term ? true : recipe.title.toLowerCase().includes(term) || recipe.tags.some((tag) => tag.toLowerCase().includes(term)),
-    )
-  }, [query])
+  const fetchMeals = async (path, { detailOnly = false } = {}) => {
+    try {
+      if (!detailOnly) {
+        setLoading(true)
+      }
+      setError("")
+      const response = await fetch(`${API_BASE}/${path}`)
+      if (!response.ok) {
+        throw new Error("Unable to reach TheMealDB.")
+      }
+      const data = await response.json()
+      const normalized = (data.meals ?? []).map(normalizeMeal)
+      if (detailOnly) {
+        setSelectedMeal(normalized[0] ?? null)
+        return normalized
+      }
+      setMeals(normalized)
+      if (normalized.length === 1 && path.startsWith("random.php")) {
+        setSelectedMeal(normalized[0])
+      } else if (!normalized.length) {
+        setSelectedMeal(null)
+      }
+      return normalized
+    } catch (fetchError) {
+      if (!detailOnly) {
+        setMeals([])
+        setSelectedMeal(null)
+      }
+      setError(fetchError.message || "Failed to fetch recipes.")
+      return []
+    } finally {
+      if (!detailOnly) {
+        setLoading(false)
+      }
+    }
+  }
+
+  const handleNameSearch = async (event) => {
+    event.preventDefault()
+    const term = query.trim()
+    if (!term) {
+      return
+    }
+    await fetchMeals(`search.php?s=${encodeURIComponent(term)}`)
+  }
+
+  const handleRandom = async () => {
+    await fetchMeals("random.php")
+  }
+
+  const handleViewRecipe = async (mealId) => {
+    const [detail] = await fetchMeals(`lookup.php?i=${encodeURIComponent(mealId)}`, { detailOnly: true })
+    if (!detail) {
+      setError("Could not load that recipe.")
+    }
+  }
+
+  useEffect(() => {
+    fetchMeals(`search.php?f=${DEFAULT_LETTER}`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <section className="recipe-recs fade-in">
@@ -54,87 +105,98 @@ function RecipeRecommendations({ onAddToCart }) {
           <p className="eyebrow">Recipe recommendations</p>
           <h2>Cook something fresh tonight</h2>
           <p className="muted">
-            Discover quick dinner ideas based on ingredients you already have in your basket.
+            Discover quick dinner ideas powered by TheMealDB. The list starts with dishes that begin with the letter “A”, and you can search or grab a random idea anytime.
           </p>
         </div>
-        <input
-          className="recipe-search"
-          type="text"
-          placeholder="Search recipes..."
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
+        <form className="recipe-search-form" onSubmit={handleNameSearch}>
+          <input
+            className="recipe-search"
+            type="text"
+            placeholder="Search meals by name..."
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <button className="primary-btn" type="submit" disabled={!query.trim() || loading}>
+            Search
+          </button>
+        </form>
       </div>
       <div className="recipe-layout">
         <aside className="recipe-filters">
-          <label>
-            Ingredients you have
-            <input
-              type="text"
-              placeholder="e.g. chicken, tomato, cheese"
-              value={filters.ingredients}
-              onChange={(event) => setFilters((prev) => ({ ...prev, ingredients: event.target.value }))}
-            />
-          </label>
-          <label>
-            Diet preference
-            <select
-              value={filters.diet}
-              onChange={(event) => setFilters((prev) => ({ ...prev, diet: event.target.value }))}
-            >
-              <option value="any">Any</option>
-              <option value="veggie">Vegetarian</option>
-              <option value="vegan">Vegan</option>
-              <option value="protein">High protein</option>
-            </select>
-          </label>
-          <button className="primary-btn" type="button">
-            Update recommendations
+          <button className="primary-btn" type="button" onClick={handleRandom} disabled={loading}>
+            Surprise me (random meal)
           </button>
+
+          {selectedMeal && (
+            <div className="selected-meal">
+              <p className="label">Meal details</p>
+              <h3>{selectedMeal.title}</h3>
+              <p className="recipe-meta">
+                {selectedMeal.area || "Unknown origin"} | {selectedMeal.category || "Uncategorized"}
+              </p>
+              <ul>
+                {selectedMeal.ingredients.slice(0, 6).map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+              {selectedMeal.youtube && (
+                <a href={selectedMeal.youtube} target="_blank" rel="noreferrer">
+                  Watch on YouTube
+                </a>
+              )}
+            </div>
+          )}
         </aside>
         <div className="recipe-grid">
-          {filteredRecipes.map((recipe) => (
-            <article key={recipe.id} className="recipe-card">
-              <div className="recipe-media">
-                <img src={recipe.image} alt={recipe.title} />
-              </div>
-              <div className="recipe-copy">
-                <p className="recipe-meta">
-                  {recipe.cookTime} � {recipe.servings}
-                </p>
-                <h3>{recipe.title}</h3>
-                <p className="recipe-rating">? {recipe.rating.toFixed(1)}</p>
-                <div className="recipe-tags">
-                  {recipe.tags.map((tag) => (
-                    <span key={tag}>{tag}</span>
-                  ))}
+          {error && !loading && <p className="error-text">{error}</p>}
+          {!error && !loading && !meals.length && <p className="muted">No meals found. Try another search.</p>}
+          {loading && <p className="muted">Loading meals...</p>}
+          {!loading &&
+            meals.map((recipe) => (
+              <article key={recipe.id} className="recipe-card">
+                <div className="recipe-media">
+                  {recipe.image ? (
+                    <img src={recipe.image} alt={recipe.title} />
+                  ) : (
+                    <div className="recipe-placeholder">No image</div>
+                  )}
                 </div>
-              </div>
-              <div className="recipe-actions">
-                <button type="button" className="ghost-btn">
-                  View recipe
-                </button>
-                <button
-                  type="button"
-                  className="primary-btn"
-                  onClick={() =>
-                    onAddToCart?.(
-                      {
-                        slug: recipe.id,
-                        name: recipe.title,
-                        price: 12.99,
-                        image: recipe.image,
-                      },
-                      1,
-                    )
-                  }
-                  disabled={!onAddToCart}
-                >
-                  Add ingredients to cart
-                </button>
-              </div>
-            </article>
-          ))}
+                <div className="recipe-copy">
+                  <p className="recipe-meta">
+                    {recipe.area || "Unknown origin"} | {recipe.category || "Uncategorized"}
+                  </p>
+                  <h3>{recipe.title}</h3>
+                  <div className="recipe-tags">
+                    {(recipe.tags.length ? recipe.tags : ["Meal"]).map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
+                  </div>
+                </div>
+                <div className="recipe-actions">
+                  <button type="button" className="ghost-btn" onClick={() => handleViewRecipe(recipe.id)}>
+                    View recipe
+                  </button>
+                  <button
+                    type="button"
+                    className="primary-btn"
+                    onClick={() =>
+                      onAddToCart?.(
+                        {
+                          slug: recipe.id,
+                          name: recipe.title,
+                          price: 12.99,
+                          image: recipe.image,
+                        },
+                        1,
+                      )
+                    }
+                    disabled={!onAddToCart}
+                  >
+                    Add ingredients to cart
+                  </button>
+                </div>
+              </article>
+            ))}
         </div>
       </div>
     </section>
@@ -142,4 +204,3 @@ function RecipeRecommendations({ onAddToCart }) {
 }
 
 export default RecipeRecommendations
-

@@ -156,6 +156,13 @@
   gap: 12px;
 }
 
+.success-text {
+  margin-top: 8px;
+  color: #0a6c51;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
 .cart-summary-panel h3 {
   margin: 0;
   font-size: 1.3rem;
@@ -1491,6 +1498,14 @@
   position: relative;
   background: var(--surface-soft);
   border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.product-image {
+  max-width: min(420px, 100%);
+  max-height: 420px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
 }
 
 .product-thumbs {
