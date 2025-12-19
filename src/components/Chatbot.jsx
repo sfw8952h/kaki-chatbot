@@ -1,17 +1,20 @@
-// component: Chatbot (interacts with Rasa assistant or Gemini)
+// component: Chatbot (interacts with Groq or optional backend)
 import { useCallback, useMemo, useState } from "react"
 import "./Chatbot.css"
 import { FaComments } from "react-icons/fa"
-import { GoogleGenAI } from "@google/genai"
 
 const GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
+
 const DEFAULT_ASSISTANT_PROMPT =
   "You are Kaki's friendly grocery concierge. Keep replies short, specific, and helpful about store products, stock, and services."
+
 const FALLBACK_HISTORY_WINDOW = 12
 const MAX_CONTEXT_PRODUCTS = 20
 const MAX_CONTEXT_LOCATIONS = 3
 const MAX_PRODUCT_NAV_LINKS = 24
+
 const NAV_DIRECTIVE_REGEX = /\[\[NAV:([^\]\s]+)\]\]/gi
+
 const STATIC_NAV_TARGETS = [
   { label: "Home", path: "/" },
   { label: "Sign up", path: "/signup" },
@@ -21,7 +24,7 @@ const STATIC_NAV_TARGETS = [
   { label: "Supplier Center", path: "/supplier" },
   { label: "Purchase history", path: "/history" },
   { label: "Order tracking", path: "/tracking" },
-  { label: "Feedback", path: "/feedbackpage" },
+  { label: "Feedback", path: "/feedback" },
   { label: "About", path: "/about" },
   { label: "Store locations", path: "/locations" },
   { label: "Membership", path: "/membership" },
@@ -50,9 +53,8 @@ const summarizeProduct = (product) => {
   if (!product) return ""
   const name = product.name || product.title || product.slug || "Unnamed item"
   const description =
-    (product.desc || product.description || product.summary || "")
-      .toString()
-      .trim() || "No description provided."
+    (product.desc || product.description || product.summary || "").toString().trim() ||
+    "No description provided."
   const category = product.category || product.tag || "General"
   const parsedPrice = parseNumeric(product.price)
   const priceText =
@@ -177,23 +179,35 @@ function Chatbot({ catalog = [], storeLocations = [], onNavigate = () => {} }) {
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState("")
 
+  // optional backend (keep if you still want a server to proxy / log / enforce policies)
   const backendEndpoint = useMemo(() => import.meta.env.VITE_BACKEND_CHAT_URL || "", [])
-  const backendAuthToken = useMemo(
-    () => import.meta.env.VITE_BACKEND_AUTH_TOKEN || "",
-    [],
-  )
-  const rasaEndpoint = useMemo(
-    () => import.meta.env.VITE_RASA_REST_URL || "http://localhost:5005/webhooks/rest/webhook",
-    [],
-  )
+  const backendAuthToken = useMemo(() => import.meta.env.VITE_BACKEND_AUTH_TOKEN || "", [])
+
+  // groq only
+  const groqSettings = useMemo(() => {
+    const apiKey = (import.meta.env.VITE_GROQ_API_KEY || "").trim()
+    if (!apiKey) return null
+    return {
+      apiKey,
+      model: (import.meta.env.VITE_GROQ_MODEL || "llama-3.1-8b-instant").trim(),
+      instructions:
+        (import.meta.env.VITE_GROQ_SYSTEM_PROMPT || "").trim() || DEFAULT_ASSISTANT_PROMPT,
+      historyWindow:
+        Number(import.meta.env.VITE_GROQ_HISTORY_WINDOW || FALLBACK_HISTORY_WINDOW) ||
+        FALLBACK_HISTORY_WINDOW,
+    }
+  }, [])
+
   const catalogSummary = useMemo(() => summarizeCatalog(catalog), [catalog])
   const locationSummary = useMemo(() => summarizeLocations(storeLocations), [storeLocations])
+
   const siteContext = useMemo(() => {
     const sections = []
     if (catalogSummary) sections.push(`Catalog:\n${catalogSummary}`)
     if (locationSummary) sections.push(`Store locations:\n${locationSummary}`)
     return sections.join("\n\n")
   }, [catalogSummary, locationSummary])
+
   const productNavigationTargets = useMemo(() => {
     if (!Array.isArray(catalog)) return []
     return catalog
@@ -204,58 +218,22 @@ function Chatbot({ catalog = [], storeLocations = [], onNavigate = () => {} }) {
         label: product.name || product.slug,
       }))
   }, [catalog])
+
   const allowedNavigationSet = useMemo(() => {
     const set = new Set()
     STATIC_NAV_TARGETS.forEach((target) => set.add(target.path))
     productNavigationTargets.forEach((target) => set.add(target.path))
     return set
   }, [productNavigationTargets])
+
   const navigationSummary = useMemo(() => {
     const staticLines = STATIC_NAV_TARGETS.map((target) => `- ${target.label}: ${target.path}`)
-    const productLines = productNavigationTargets.map(
-      (target) => `- ${target.label}: ${target.path}`,
-    )
+    const productLines = productNavigationTargets.map((target) => `- ${target.label}: ${target.path}`)
     return [...staticLines, ...productLines].join("\n")
   }, [productNavigationTargets])
-  const geminiSettings = useMemo(() => {
-    const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || "").trim()
-    if (!apiKey) return null
-    return {
-      apiKey,
-      model: (import.meta.env.VITE_GEMINI_MODEL || "gemini-2.5-flash").trim(),
-      instructions:
-        (import.meta.env.VITE_GEMINI_SYSTEM_PROMPT || "").trim() || DEFAULT_ASSISTANT_PROMPT,
-      historyWindow:
-        Number(import.meta.env.VITE_GEMINI_HISTORY_WINDOW || FALLBACK_HISTORY_WINDOW) ||
-        FALLBACK_HISTORY_WINDOW,
-    }
-  }, [])
-  const groqSettings = useMemo(() => {
-    const apiKey = (import.meta.env.VITE_GROQ_API_KEY || "").trim()
-    if (!apiKey) return null
-    return {
-      apiKey,
-      model: (import.meta.env.VITE_GROQ_MODEL || "llama-3.1-8b-instant").trim(),
-      instructions:
-        (import.meta.env.VITE_GEMINI_SYSTEM_PROMPT || "").trim() || DEFAULT_ASSISTANT_PROMPT,
-      historyWindow:
-        Number(import.meta.env.VITE_GEMINI_HISTORY_WINDOW || FALLBACK_HISTORY_WINDOW) ||
-        FALLBACK_HISTORY_WINDOW,
-    }
-  }, [])
-  const geminiClient = useMemo(() => {
-    if (!geminiSettings) return null
-    try {
-      return new GoogleGenAI({ apiKey: geminiSettings.apiKey })
-    } catch (clientError) {
-      console.warn("Gemini client failed to initialize", clientError)
-      return null
-    }
-  }, [geminiSettings])
+
   const stripNavigationDirectives = useCallback((text) => {
-    if (typeof text !== "string") {
-      return { cleaned: "", directives: [] }
-    }
+    if (typeof text !== "string") return { cleaned: "", directives: [] }
     const directives = []
     const cleaned = text.replace(NAV_DIRECTIVE_REGEX, (_, rawPath) => {
       const normalized = (rawPath || "").trim()
@@ -267,50 +245,53 @@ function Chatbot({ catalog = [], storeLocations = [], onNavigate = () => {} }) {
     })
     return { cleaned: cleaned.trim(), directives }
   }, [])
+
   const safeNavigate = useCallback(
     (rawPath) => {
       if (!rawPath) return
       const normalized = rawPath.startsWith("/") ? rawPath : `/${rawPath}`
       if (!allowedNavigationSet.has(normalized)) return
-      if (typeof onNavigate === "function") {
-        onNavigate(normalized)
-      }
+      if (typeof onNavigate === "function") onNavigate(normalized)
     },
     [allowedNavigationSet, onNavigate],
   )
+
   const createGroundedPrompt = useCallback(
     (promptText) => {
       const basePrompt = (promptText || DEFAULT_ASSISTANT_PROMPT).trim() || DEFAULT_ASSISTANT_PROMPT
       const blocks = [basePrompt]
+
       if (siteContext) {
         blocks.push(`FreshMart reference data:\n${siteContext}`)
       }
+
       if (navigationSummary) {
         blocks.push(
           `Allowed navigation commands:\n${navigationSummary}\nWhen the shopper asks to open any section above, confirm in your reply and append [[NAV:/path]] using the exact path shown. Do not invent routes or slugs, and use at most one NAV token per response.`,
         )
       }
+
       blocks.push(
         'If the answer is not covered in the reference data, reply with: "I\'m not sure about that. Please check with a FreshMart associate."',
       )
+
       return blocks.filter(Boolean).join("\n\n")
     },
     [siteContext, navigationSummary],
   )
+
   const sendViaGroq = useCallback(
     async (conversationHistory) => {
-      if (!groqSettings) {
-        throw new Error("Groq is not configured")
-      }
+      if (!groqSettings) throw new Error("Groq is not configured")
+
       const limitedHistory = conversationHistory.slice(-groqSettings.historyWindow)
+
       const messagesPayload = []
       const instructionBlock = createGroundedPrompt(groqSettings.instructions)
       if (instructionBlock) {
-        messagesPayload.unshift({
-          role: "system",
-          content: instructionBlock,
-        })
+        messagesPayload.push({ role: "system", content: instructionBlock })
       }
+
       limitedHistory.forEach((message) => {
         messagesPayload.push({
           role: message.from === "user" ? "user" : "assistant",
@@ -333,9 +314,7 @@ function Chatbot({ catalog = [], storeLocations = [], onNavigate = () => {} }) {
 
       if (!response.ok) {
         const errorPayload = await response.text()
-        throw new Error(
-          `Groq replied with ${response.status}: ${errorPayload || "No response body"}`,
-        )
+        throw new Error(`Groq replied with ${response.status}: ${errorPayload || "No response body"}`)
       }
 
       const payload = await response.json()
@@ -344,60 +323,17 @@ function Chatbot({ catalog = [], storeLocations = [], onNavigate = () => {} }) {
           ?.map((choice) => choice?.message?.content || "")
           .find((entry) => entry && entry.trim())
           ?.trim() || ""
+
       const { cleaned, directives } = stripNavigationDirectives(replyText)
       directives.forEach(safeNavigate)
+
       return cleaned || replyText || "I wasn't able to get a response from Groq."
     },
     [groqSettings, createGroundedPrompt, safeNavigate, stripNavigationDirectives],
   )
 
-  const sendViaGemini = useCallback(
-    async (conversationHistory) => {
-      if (!geminiClient || !geminiSettings) {
-        throw new Error("Gemini is not configured")
-      }
-      const limitedHistory = conversationHistory.slice(-geminiSettings.historyWindow)
-      const contents = limitedHistory.map((message) => ({
-        role: message.from === "user" ? "user" : "model",
-        parts: [{ text: message.text }],
-      }))
-      const instructionText = createGroundedPrompt(geminiSettings.instructions)
-      if (instructionText) {
-        contents.unshift({
-          role: "user",
-          parts: [{ text: instructionText }],
-        })
-      }
-      const response = await geminiClient.models.generateContent({
-        model: geminiSettings.model,
-        contents,
-      })
-      const directText = (response?.text || "").trim()
-      if (directText) {
-        const { cleaned, directives } = stripNavigationDirectives(directText)
-        directives.forEach(safeNavigate)
-        if (cleaned) return cleaned
-      }
-      const fallback =
-        response?.candidates
-          ?.map((candidate) =>
-            (candidate?.content?.parts || [])
-              .map((part) => part?.text || "")
-              .filter(Boolean)
-              .join("\n"),
-          )
-          .find((entry) => entry && entry.trim())
-          ?.trim() || ""
-      const { cleaned, directives } = stripNavigationDirectives(fallback)
-      directives.forEach(safeNavigate)
-      return cleaned || fallback || "I wasn't able to get a response from Gemini."
-    },
-    [geminiClient, geminiSettings, createGroundedPrompt, safeNavigate, stripNavigationDirectives],
-  )
-
   const sendMessage = async () => {
     if (!draft.trim()) return
-
     if (isSending) return
 
     setError("")
@@ -409,108 +345,47 @@ function Chatbot({ catalog = [], storeLocations = [], onNavigate = () => {} }) {
 
     try {
       setIsSending(true)
+
+      // if you set a backend endpoint, we call it; otherwise we go direct to groq
       const useBackend = Boolean(backendEndpoint)
-      const shouldUseGroq = !useBackend && groqSettings
-      const shouldUseGemini = !useBackend && !groqSettings && geminiClient
-      if (shouldUseGroq) {
+
+      if (!useBackend) {
+        if (!groqSettings) throw new Error("Groq API key is missing (VITE_GROQ_API_KEY)")
         const history = [...messages, userMessage]
         const replyText = await sendViaGroq(history)
         setMessages((prev) => [
           ...prev,
-          {
-            id: Date.now() + 1,
-            text: replyText,
-            from: "bot",
-          },
+          { id: Date.now() + 1, text: replyText, from: "bot" },
         ])
         return
       }
 
-      if (shouldUseGemini) {
-        const history = [...messages, userMessage]
-        const replyText = await sendViaGemini(history)
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now() + 1,
-            text: replyText,
-            from: "bot",
-          },
-        ])
-        return
-      }
-
-      const response = await fetch(useBackend ? backendEndpoint : rasaEndpoint, {
+      // backend flow (optional)
+      const response = await fetch(backendEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(useBackend && backendAuthToken
-            ? { Authorization: `Bearer ${backendAuthToken}` }
-            : {}),
+          ...(backendAuthToken ? { Authorization: `Bearer ${backendAuthToken}` } : {}),
         },
-        body: JSON.stringify(
-          useBackend
-            ? {
-                message: trimmed,
-                language,
-                sender_id: "freshmart-web-user",
-              }
-            : {
-                sender: "freshmart-web-user",
-                message: trimmed,
-                metadata: { language },
-              },
-        ),
+        body: JSON.stringify({
+          message: trimmed,
+          language,
+          sender_id: "freshmart-web-user",
+        }),
       })
 
-      if (!response.ok) {
-        throw new Error(`Chat service replied with ${response.status}`)
-      }
+      if (!response.ok) throw new Error(`Chat service replied with ${response.status}`)
 
       const payload = await response.json()
-      const replies = (() => {
-        if (useBackend) {
-          const replyText = payload?.reply
-          const { cleaned, directives } = stripNavigationDirectives(
-            replyText || "I'm here, but I didn't receive a reply from the assistant.",
-          )
-          directives.forEach(safeNavigate)
-          return [
-            {
-              id: Date.now() + 1,
-              text: cleaned || replyText || "I'm here, but I didn't receive a reply from the assistant.",
-              from: "bot",
-            },
-          ]
-        }
+      const replyText = payload?.reply || "I'm here, but I didn't receive a reply from the assistant."
 
-        return Array.isArray(payload) && payload.length > 0
-          ? payload
-              .filter((entry) => entry && (entry.text || entry.image))
-              .map((entry, index) => ({
-                id: Date.now() + index + 1,
-                text: (() => {
-                  if (entry.text) {
-                    const { cleaned, directives } = stripNavigationDirectives(entry.text)
-                    directives.forEach(safeNavigate)
-                    return cleaned || entry.text
-                  }
-                  return entry.image
-                    ? "The assistant shared an image (display in UI to show it)."
-                    : "The assistant responded."
-                })(),
-                from: "bot",
-              }))
-          : [
-              {
-                id: Date.now() + 1,
-                text: "I'm here, but I didn't receive a reply from the assistant.",
-                from: "bot",
-              },
-            ]
-      })()
+      const { cleaned, directives } = stripNavigationDirectives(replyText)
+      directives.forEach(safeNavigate)
 
-      setMessages((prev) => [...prev, ...replies])
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now() + 1, text: cleaned || replyText, from: "bot" },
+      ])
     } catch (err) {
       console.error(err)
       setError("Trouble reaching the chatbot service. Please try again.")
@@ -543,6 +418,9 @@ function Chatbot({ catalog = [], storeLocations = [], onNavigate = () => {} }) {
       {open && (
         <div className="chatbot-box fade-in">
           <h4>AI Chatbot</h4>
+
+          {/* keep language selector if your backend uses it; groq direct mode doesn't need it,
+              but it doesn't hurt to keep it for future */}
           <div className="language-row">
             <label htmlFor="language-select">Language</label>
             <select
@@ -557,6 +435,7 @@ function Chatbot({ catalog = [], storeLocations = [], onNavigate = () => {} }) {
               ))}
             </select>
           </div>
+
           <div className="messages">
             {messages.map((message) => (
               <p key={message.id} className={message.from}>
@@ -565,7 +444,9 @@ function Chatbot({ catalog = [], storeLocations = [], onNavigate = () => {} }) {
             ))}
             {isSending && <p className="bot subtle">Assistant is thinking...</p>}
           </div>
+
           {error && <p className="error-banner">{error}</p>}
+
           <div className="chat-input-wrapper">
             <input
               className="chat-input"

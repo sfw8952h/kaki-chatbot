@@ -76,12 +76,12 @@ function App() {
   useEffect(() => {
     if (!supabase) return
 
-    const fetchProfile = async (userId) => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("full_name, role")
-        .eq("id", userId)
-        .maybeSingle()
+      const fetchProfile = async (userId) => {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("full_name, role, membership_tier, membership_points")
+          .eq("id", userId)
+          .maybeSingle()
       if (error) {
         console.warn("Unable to load profile", error)
         setProfile(null)
@@ -152,6 +152,27 @@ function App() {
   const handleProposalDecision = (id, status) => {
     setProposals((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)))
   }
+
+  const handleMembershipUpdate = useCallback(
+    async (tier) => {
+      if (!supabase || !sessionUser) {
+        return false
+      }
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({ membership_tier: tier })
+        .eq("id", sessionUser.id)
+        .select("full_name, role, membership_tier, membership_points")
+        .maybeSingle()
+      if (error) {
+        console.warn("Unable to update membership tier", error)
+        return false
+      }
+      setProfile(data || null)
+      return true
+    },
+    [sessionUser],
+  )
 
   const handleFeedbackSubmitted = (entry) => {
     setFeedbackEntries((prev) => [
@@ -678,7 +699,15 @@ function App() {
     if (currentPath === "/terms") return <TermsPage />
     if (currentPath === "/privacy") return <PrivacyPage />
     if (currentPath === "/locations") return <LocationsPage locations={storeLocations} />
-    if (currentPath === "/membership") return <MembershipPage />
+    if (currentPath === "/membership")
+      return (
+        <MembershipPage
+          user={sessionUser}
+          profile={profile}
+          onNavigate={navigate}
+          onMembershipChange={handleMembershipUpdate}
+        />
+      )
     if (currentPath === "/profile")
       return (
         <ProfilePage
@@ -724,6 +753,7 @@ function App() {
     removeFromCart,
     updateCartQuantity,
     orders,
+    handleMembershipUpdate,
   ])
 
   return (
@@ -779,6 +809,7 @@ function App() {
       <Chatbot
         catalog={catalog}
         storeLocations={storeLocations}
+        userProfile={profile}
         onNavigate={navigate}
       />
     </div>
