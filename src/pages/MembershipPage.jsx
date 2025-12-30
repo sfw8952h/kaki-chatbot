@@ -1,39 +1,6 @@
 import { useMemo, useState } from "react"
 import "./MembershipPage.css"
-
-const tiers = [
-  {
-    id: "bronze",
-    label: "Bronze",
-    headline: "Get started",
-    minPoints: 0,
-    maxPoints: 499,
-    perks: ["Welcome bundle worth 200 pts", "Early access to weekly flyers", "Tiered points multiplier ×1"],
-    accent: "linear-gradient(135deg, #fef3c7, #fde68a)",
-  },
-  {
-    id: "silver",
-    label: "Silver",
-    headline: "Earn more rewards",
-    minPoints: 500,
-    maxPoints: 1499,
-    perks: ["Free delivery on orders over $35", "Birthday double points", "Tiered multiplier ×1.5"],
-    accent: "linear-gradient(135deg, #c7d2fe, #a5b4fc)",
-  },
-  {
-    id: "gold",
-    label: "Gold",
-    headline: "Exclusive treatment",
-    minPoints: 1500,
-    maxPoints: Number.POSITIVE_INFINITY,
-    perks: ["Priority support", "Complimentary samples each month", "Tiered multiplier ×2"],
-    accent: "linear-gradient(135deg, #fde68a, #fb923c)",
-  },
-]
-
-const benefits = [
-  "Buy stuff get points and stuff. idk not finished yet",
-]
+import { benefits, tiers } from "../data/membershipTiers"
 
 const formatTier = (tierId) => tiers.find((tier) => tier.id === tierId) || tiers[0]
 

@@ -21,6 +21,7 @@ import ProductPage from "./pages/ProductPage"
 import MembershipPage from "./pages/MembershipPage"
 import ProfilePage from "./pages/ProfilePage"
 import LocationsPage from "./pages/LocationsPage"
+import { POINTS_PER_DOLLAR, getTierByPoints } from "./data/membershipTiers"
 import { supabase } from "./lib/supabaseClient"
 import { products as seedProducts } from "./data/products"
 import { storeLocations as seedStoreLocations } from "./data/locations"
@@ -407,6 +408,38 @@ function App() {
           }
         }
 
+        const pointsEarned = Math.max(
+          0,
+          Math.floor(toPriceNumber(orderPayload.total) * POINTS_PER_DOLLAR),
+        )
+
+        if (pointsEarned > 0 && sessionUser) {
+          const currentPoints = Number(profile?.membership_points ?? 0)
+          const nextPoints = currentPoints + pointsEarned
+          const nextTier = getTierByPoints(nextPoints)
+          const updatePayload = {
+            membership_points: nextPoints,
+            membership_tier: nextTier?.id || profile?.membership_tier || "",
+          }
+
+          try {
+            const { data: updatedProfile, error: pointsError } = await supabase
+              .from("profiles")
+              .update(updatePayload)
+              .eq("id", sessionUser.id)
+              .select("full_name, role, membership_tier, membership_points")
+              .maybeSingle()
+
+            if (pointsError) {
+              console.warn("Unable to award membership points", pointsError)
+            } else if (updatedProfile) {
+              setProfile(updatedProfile)
+            }
+          } catch (pointsUpdateError) {
+            console.warn("Unable to award membership points", pointsUpdateError)
+          }
+        }
+
         await loadUserOrders()
       } catch (error) {
         console.warn("Order processing failed", error)
@@ -415,7 +448,7 @@ function App() {
         setCartItems([])
       }
     },
-    [sessionUser, loadUserOrders],
+    [sessionUser, loadUserOrders, profile],
   )
 
   const upsertCatalogLocally = (product) => {
