@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import "./App.css"
 import Header from "./components/Header"
-import HeroBanner from "./components/HeroBanner"
+import PromoCarousel from "./components/PromoCarousel"
 import GroceryShowcase from "./components/GroceryShowcase"
 import RecipesPage from "./pages/RecipesPage"
 import Chatbot from "./components/Chatbot"
@@ -25,6 +25,7 @@ import { POINTS_PER_DOLLAR, getTierByPoints } from "./data/membershipTiers"
 import { supabase } from "./lib/supabaseClient"
 import { products as seedProducts } from "./data/products"
 import { storeLocations as seedStoreLocations } from "./data/locations"
+import OrderHelpPage from "./pages/OrderHelpPage"
 
 const toPriceNumber = (value) => {
   if (typeof value === "number" && Number.isFinite(value)) return value
@@ -724,6 +725,12 @@ function App() {
           orders={orders}
         />
       )
+    if (currentPath.startsWith("/help")) {
+      const orderId = currentPath === "/help" ? "" : currentPath.replace("/help/", "")
+      return (
+        <OrderHelpPage orderId={orderId || null} orders={orders} onNavigate={navigate} />
+      )
+    }
     if (currentPath === "/tracking")
       return (
         <OrderTrackingPage user={sessionUser} onNavigate={navigate} orders={orders} />
@@ -761,7 +768,7 @@ function App() {
     }
     return (
       <>
-        <HeroBanner />
+        <PromoCarousel products={catalog} />
         <GroceryShowcase
           onNavigate={navigate}
           products={filteredCatalog}

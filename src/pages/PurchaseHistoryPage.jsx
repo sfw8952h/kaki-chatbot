@@ -69,7 +69,14 @@ function PurchaseHistoryPage({ user, onNavigate, orders = [] }) {
                     <button className="badge-btn primary" type="button" onClick={() => onNavigate?.("/")}>
                       Reorder
                     </button>
-                    <button className="badge-btn danger" type="button">
+                    <button
+                      className="badge-btn danger"
+                      type="button"
+                      onClick={() => {
+                        const helpPath = order.id ? `/help/${order.id}` : "/help"
+                        onNavigate?.(helpPath)
+                      }}
+                    >
                       Help
                     </button>
                   </div>
