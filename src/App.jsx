@@ -725,7 +725,9 @@ function App() {
         />
       )
     if (currentPath === "/tracking")
-      return <OrderTrackingPage user={sessionUser} onNavigate={navigate} />
+      return (
+        <OrderTrackingPage user={sessionUser} onNavigate={navigate} orders={orders} />
+      )
     if (currentPath === "/feedback")
       return <FeedbackPage onFeedbackSubmitted={handleFeedbackSubmitted} />
     if (currentPath === "/about") return <AboutPage />
@@ -747,6 +749,7 @@ function App() {
           onNavigate={navigate}
           user={sessionUser}
           profileName={profile?.full_name}
+          orders={orders}
           onProfileUpdated={(name) => {
             if (name) setProfile({ full_name: name })
           }}

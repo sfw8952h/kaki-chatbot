@@ -17,13 +17,7 @@ const membershipSnapshot = {
   benefits: ["5% off produce", "Priority chat support", "Free delivery on weekends"],
 }
 
-const fallbackOrders = [
-  { id: "FM-10423", date: "Dec 12, 2025", total: "$82.40", status: "On the way" },
-  { id: "FM-10388", date: "Dec 5, 2025", total: "$56.10", status: "Delivered" },
-  { id: "FM-10342", date: "Nov 24, 2025", total: "$41.80", status: "Delivered" },
-]
-
-function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
+function ProfilePage({ onNavigate, user, profileName, onProfileUpdated, orders = [] }) {
   const supabase = useMemo(() => {
     try {
       return getSupabaseClient()
@@ -210,7 +204,17 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
     if (addresses.length === 0) setAddressForm((prev) => ({ ...prev, isDefault: true }))
   }, [addresses.length])
 
-  const orders = fallbackOrders
+  const recentOrders = (Array.isArray(orders) ? orders : [])
+    .slice(0, 3)
+    .map((order) => ({
+      id: order.id,
+      date: order.date || order.placed_at || order.created_at || "",
+      total:
+        typeof order.total === "number"
+          ? `$${order.total.toFixed(2)}`
+          : order.total || "$0.00",
+      status: order.status || "Processing",
+    }))
 
   const handleAddressInputChange = (field, value) => {
     setAddressForm((prev) => ({ ...prev, [field]: value }))
@@ -556,18 +560,22 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated }) {
       </div>
 
       <div className="orders-list">
-        {orders.map((order) => (
-          <div key={order.id} className="order-row">
-            <div>
-              <p className="tile-title">{order.id}</p>
-              <p className="tile-note">{order.date}</p>
+        {recentOrders.length === 0 ? (
+          <p className="muted">You don't have any orders yet.</p>
+        ) : (
+          recentOrders.map((order) => (
+            <div key={order.id} className="order-row">
+              <div>
+                <p className="tile-title">{order.id}</p>
+                <p className="tile-note">{order.date}</p>
+              </div>
+              <div className="order-meta">
+                <span className="order-total">{order.total}</span>
+                <span className="status-pill">{order.status}</span>
+              </div>
             </div>
-            <div className="order-meta">
-              <span className="order-total">{order.total}</span>
-              <span className="status-pill">{order.status}</span>
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   )

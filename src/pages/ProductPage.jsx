@@ -2,6 +2,11 @@
 import { useState } from "react"
 import "./Pages.css"
 
+const comparisonSites = [
+  { name: "FairPrice", baseUrl: "https://www.fairprice.com.sg/search?query=" },
+  { name: "RedMart", baseUrl: "https://www.redmart.com/search/?q=" },
+]
+
 function ProductPage({ slug, products, onAddToCart }) {
   const product = products?.find((p) => p.slug === slug)
   const [quantity, setQuantity] = useState(1)
@@ -15,6 +20,7 @@ function ProductPage({ slug, products, onAddToCart }) {
       </section>
     )
   }
+  const comparisonTerm = encodeURIComponent((product.name || product.slug || "").trim())
 
   return (
     <section className="page-panel product-page">
@@ -73,6 +79,19 @@ function ProductPage({ slug, products, onAddToCart }) {
             Categories: <a href="#">Produce</a>, <a href="#">Fresh</a>, <a href="#">Snacks</a>
           </p>
           <p>{product.desc}. In stock and ready to ship.</p>
+        </div>
+        <div className="compare-row">
+          {comparisonSites.map((site) => (
+            <a
+              key={site.name}
+              className="compare-link"
+              href={`${site.baseUrl}${comparisonTerm}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Compare on {site.name}
+            </a>
+          ))}
         </div>
       </div>
     </section>
