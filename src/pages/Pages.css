@@ -63,6 +63,29 @@
   flex-wrap: wrap;
 }
 
+.primary-btn {
+  border-radius: 14px;
+  padding: 12px 20px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border: none;
+  background: linear-gradient(145deg, #0da274, #0a8a62);
+  color: #f8fafc;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 10px 28px rgba(13, 162, 116, 0.35);
+}
+
+.primary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .cart-items {
   display: flex;
   flex-direction: column;

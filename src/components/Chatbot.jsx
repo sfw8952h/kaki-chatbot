@@ -1,5 +1,5 @@
 // component: Chatbot (interacts with Groq or optional backend)
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import "./Chatbot.css"
 import { FaComments } from "react-icons/fa"
 
@@ -156,10 +156,17 @@ const summarizeLocations = (locations = []) => {
     .join("\n")
 }
 
+const GREETING_BY_LANG = {
+  en: "Hi there! I'm Kaki's AI Chatbot. Ask me about stock, products, or what's fresh today.",
+  zh: "你好！我是 Kaki 的 AI 聊天助手。可随时问我库存、产品或今日优惠。",
+  ms: "Hai! Saya Chatbot AI Kaki. Tanyakan tentang stok, produk, atau promosi hari ini.",
+  ta: "வணக்கம்! நான் காகியின் AI சொட்மேட். எப்போது வேண்டுமானாலும் பொருட்கள் மற்றும் தற்சமய சலுகைகள் பற்றி கேளுங்கள்.",
+}
+
 const initialMessages = [
   {
     id: 1,
-    text: "Hi there! I'm Kaki's AI Chatbot. Ask me about stock, products, or what's fresh today.",
+    text: GREETING_BY_LANG.en,
     from: "bot",
   },
 ]
@@ -185,6 +192,15 @@ function Chatbot({
   const [language, setLanguage] = useState(languages[0].code)
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState("")
+
+  useEffect(() => {
+    const greeting = GREETING_BY_LANG[language] || GREETING_BY_LANG.en
+    setMessages((prev) => {
+      if (!prev.length || prev[0].from !== "bot") return prev
+      const updated = { ...prev[0], text: greeting }
+      return [updated, ...prev.slice(1)]
+    })
+  }, [language])
 
   // optional backend (keep if you still want a server to proxy / log / enforce policies)
   const backendEndpoint = useMemo(() => import.meta.env.VITE_BACKEND_CHAT_URL || "", [])
