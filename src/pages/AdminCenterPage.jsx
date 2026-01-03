@@ -2,7 +2,16 @@
 // admin ui: metrics, products crud, proposals, store hours, complaints
 
 import { useEffect, useMemo, useState, useCallback } from "react"
-import { FaBoxOpen, FaCog, FaClock, FaHome, FaList, FaSearch, FaSignOutAlt } from "react-icons/fa"
+import {
+  FaBoxOpen,
+  FaCog,
+  FaClock,
+  FaHome,
+  FaList,
+  FaSearch,
+  FaSignOutAlt,
+  FaTags,
+} from "react-icons/fa"
 import { getSupabaseClient } from "../lib/supabaseClient"
 import "./Pages.css"
 
@@ -48,6 +57,7 @@ const navLinks = [
   { label: "Dashboard", icon: <FaHome />, key: "dashboard" },
   { label: "Products", icon: <FaBoxOpen />, key: "products" },
   { label: "Inventory", icon: <FaList />, key: "inventory" },
+  { label: "Promotions", icon: <FaTags />, key: "promotions" },
   { label: "Stores", icon: <FaClock />, key: "stores" },
   { label: "Support", icon: <FaCog />, key: "support" },
 ]
@@ -79,6 +89,8 @@ function AdminCenterPage({
   onProductUpsert,
   storeLocations = [],
   onStoreUpsert,
+  promotions = [],
+  onPromotionsUpdate = () => {},
 }) {
   const supabase = useMemo(() => {
     try {
@@ -115,6 +127,15 @@ function AdminCenterPage({
   const [storeSaving, setStoreSaving] = useState({})
   const [storeQuery, setStoreQuery] = useState("")
   const [expandedStoreId, setExpandedStoreId] = useState(null)
+  const [promoDrafts, setPromoDrafts] = useState(promotions || [])
+  const [promoForm, setPromoForm] = useState({
+    id: "",
+    badge: "",
+    headline: "",
+    detail: "",
+    slug: "",
+    note: "",
+  })
 
   const ensureSession = useCallback(async () => {
     if (!supabase) throw new Error("Supabase is not configured. Check env keys.")
@@ -127,6 +148,10 @@ function AdminCenterPage({
     if (!refreshed?.session) throw new Error("Session expired. Please log in again.")
     return refreshed.session
   }, [supabase])
+
+  useEffect(() => {
+    setPromoDrafts(promotions || [])
+  }, [promotions])
 
   const handleLogout = async () => {
     setFlash("")
@@ -170,6 +195,64 @@ function AdminCenterPage({
       outOfStock: false,
     })
     setEditingId(null)
+  }
+
+  const resetPromoForm = () => {
+    setPromoForm({
+      id: "",
+      badge: "",
+      headline: "",
+      detail: "",
+      slug: "",
+      note: "",
+    })
+  }
+
+  const handlePromoSubmit = (event) => {
+    event.preventDefault()
+    setFlash("")
+    const slug = (promoForm.slug || "").trim()
+    const headline = (promoForm.headline || "").trim()
+    if (!slug || !headline) {
+      setFlash("Promotion slug and headline are required.")
+      return
+    }
+    const nextPromo = {
+      id: promoForm.id || slug,
+      slug,
+      badge: promoForm.badge?.trim() || "Featured deal",
+      headline,
+      detail: (promoForm.detail || "").trim(),
+      note: (promoForm.note || "").trim(),
+      actionLabel: "Go to product",
+      actionUrl: `/product/${slug}`,
+    }
+    const exists = promoDrafts.some((item) => item.id === nextPromo.id)
+    const updated = exists
+      ? promoDrafts.map((item) => (item.id === nextPromo.id ? nextPromo : item))
+      : [nextPromo, ...promoDrafts]
+    setPromoDrafts(updated)
+    onPromotionsUpdate(updated)
+    setFlash("Promotions updated.")
+    resetPromoForm()
+  }
+
+  const handlePromoEdit = (promo) => {
+    setPromoForm({
+      id: promo.id,
+      badge: promo.badge || "",
+      headline: promo.headline || "",
+      detail: promo.detail || "",
+      slug: promo.slug || "",
+      note: promo.note || "",
+    })
+  }
+
+  const handlePromoDelete = (id) => {
+    const updated = promoDrafts.filter((item) => item.id !== id)
+    setPromoDrafts(updated)
+    onPromotionsUpdate(updated)
+    setFlash("Promotion removed.")
   }
 
   // add/update product (db + ui)
@@ -507,15 +590,21 @@ function AdminCenterPage({
       ? { eyebrow: "Products", title: "Products", detail: "Manage listings and visibility." }
       : activeTab === "inventory"
         ? { eyebrow: "Inventory", title: "Inventory", detail: "Track stock and supplier approvals." }
+      : activeTab === "promotions"
+        ? {
+            eyebrow: "Promotions",
+            title: "Hero carousel",
+            detail: "Curate the deals that show up in the homepage slider.",
+          }
         : activeTab === "stores"
-          ? {
-              eyebrow: "Store network",
-              title: "Store hours",
-              detail: "Edit base hours and holiday overrides for each location.",
-            }
-          : activeTab === "support"
-            ? { eyebrow: "Support", title: "Feedback", detail: "Review customer complaints." }
-            : { eyebrow: "Dashboard", title: "Overview", detail: "Metrics and health of the store." }
+            ? {
+                eyebrow: "Store network",
+                title: "Store hours",
+                detail: "Edit base hours and holiday overrides for each location.",
+              }
+            : activeTab === "support"
+              ? { eyebrow: "Support", title: "Feedback", detail: "Review customer complaints." }
+              : { eyebrow: "Dashboard", title: "Overview", detail: "Metrics and health of the store." }
 
   return (
     <section className="admin-shell">
@@ -779,9 +868,9 @@ function AdminCenterPage({
           </article>
         )}
 
-        {activeTab === "inventory" && (
-          <>
-            <article className="dash-card">
+          {activeTab === "inventory" && (
+            <>
+              <article className="dash-card">
               <div className="dash-card-head">
                 <div>
                   <p className="dash-label">Supplier proposals</p>
@@ -856,12 +945,115 @@ function AdminCenterPage({
                   </li>
                 ))}
               </ul>
-            </article>
-          </>
-        )}
+              </article>
+            </>
+          )}
 
-        {activeTab === "stores" && (
-          <article className="dash-card product-board">
+          {activeTab === "promotions" && (
+            <article className="dash-card promo-card">
+              <div className="dash-card-head">
+                <div>
+                  <p className="dash-label">Promotions</p>
+                  <strong>Hero carousel slides</strong>
+                  <p className="muted small-note">Arrange the deals shown at the top of the catalog.</p>
+                </div>
+              </div>
+
+              <div className="promo-admin-grid">
+                {promoDrafts.map((promo) => (
+                  <div key={promo.id} className="promo-admin-card">
+                    <p className="promo-slide-badge">{promo.badge}</p>
+                    <h4>{promo.headline}</h4>
+                    <p className="muted">{promo.detail}</p>
+                    <span className="promo-slug">{promo.slug}</span>
+                    <div className="promo-admin-actions">
+                      <button
+                        className="badge-btn primary"
+                        type="button"
+                        onClick={() => handlePromoEdit(promo)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="badge-btn danger"
+                        type="button"
+                        onClick={() => handlePromoDelete(promo.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {promoDrafts.length === 0 && <p>No active promotions yet.</p>}
+              </div>
+
+              <form className="signup-form" onSubmit={handlePromoSubmit}>
+                <div className="dash-duo">
+                  <label>
+                    Badge
+                    <input
+                      type="text"
+                      placeholder="Fresh savings"
+                      value={promoForm.badge}
+                      onChange={(e) => setPromoForm((prev) => ({ ...prev, badge: e.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    Headline
+                    <input
+                      type="text"
+                      placeholder="Fresh ingredients, on sale"
+                      value={promoForm.headline}
+                      onChange={(e) => setPromoForm((prev) => ({ ...prev, headline: e.target.value }))}
+                    />
+                  </label>
+                </div>
+
+                <label>
+                  Detail
+                  <textarea
+                    rows={2}
+                    placeholder="Short summary of the promotion"
+                    value={promoForm.detail}
+                    onChange={(e) => setPromoForm((prev) => ({ ...prev, detail: e.target.value }))}
+                  />
+                </label>
+
+                <div className="dash-duo">
+                  <label>
+                    Product slug
+                    <input
+                      type="text"
+                      placeholder="heirloom-tomatoes"
+                      value={promoForm.slug}
+                      onChange={(e) => setPromoForm((prev) => ({ ...prev, slug: e.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    Note
+                    <input
+                      type="text"
+                      placeholder="Limited stock"
+                      value={promoForm.note}
+                      onChange={(e) => setPromoForm((prev) => ({ ...prev, note: e.target.value }))}
+                    />
+                  </label>
+                </div>
+
+            <div className="auth-helper-row">
+              <button className="primary-btn" type="submit">
+                {promoForm.id ? "Update promotion" : "Add promotion"}
+              </button>
+              <button className="ghost-btn" type="button" onClick={resetPromoForm}>
+                Clear
+              </button>
+            </div>
+          </form>
+        </article>
+      )}
+
+      {activeTab === "stores" && (
+            <article className="dash-card product-board">
             <div className="board-top">
               <div>
                 <p className="dash-label">Stores</p>

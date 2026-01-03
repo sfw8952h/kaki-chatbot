@@ -67,6 +67,10 @@
   text-decoration: none;
 }
 
+.top-link--right {
+  margin-left: auto;
+}
+
 .top-link:hover {
   text-decoration: underline;
 }

@@ -115,10 +115,6 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch, onAddToCa
               >
                 <div className="grocery-media" style={{ background: product.accent }}>
                   <img src={product.image} alt={product.name} className="grocery-media-image" />
-                  <div className="grocery-media-label">
-                    <span aria-hidden="true">{product.icon}</span>
-                    <small>{product.tag}</small>
-                  </div>
                 </div>
                 <div className="grocery-text">
                   <div className="grocery-heading">

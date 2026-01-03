@@ -1,4 +1,6 @@
 // component: PurchaseHistoryPage
+// component: PurchaseHistoryPage
+import { useState } from "react"
 import "./Pages.css"
 
 function PurchaseHistoryPage({ user, onNavigate, orders = [] }) {
@@ -16,6 +18,29 @@ function PurchaseHistoryPage({ user, onNavigate, orders = [] }) {
   }
 
   const hasOrders = orders.length > 0
+  const [expandedOrderId, setExpandedOrderId] = useState(null)
+
+  const formatOrderDate = (value) => {
+    if (!value) return "—"
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return value
+    return parsed.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })
+  }
+
+  const toggleExpansion = (id) => {
+    setExpandedOrderId((prev) => (prev === id ? null : id))
+  }
+
+  const renderOrderItems = (items) => {
+    if (!items || items.length === 0) return "No items recorded."
+    return items
+      .map((item) => `${item.quantity}x ${item.product_name || item.name}`)
+      .join(", ")
+  }
 
   return (
     <section className="page-panel">
@@ -40,46 +65,57 @@ function PurchaseHistoryPage({ user, onNavigate, orders = [] }) {
         <div className="product-table compact">
           <div className="product-header">
             <span>Order</span>
-            <span>Items</span>
             <span>Date</span>
             <span>Total</span>
             <span>Status</span>
             <span>Actions</span>
+            <span>Details</span>
           </div>
           <div className="product-rows">
-            {orders.map((order) => {
+            {orders.map((order, index) => {
               const orderItems = order.order_items ?? order.items ?? []
-              const summary =
-                orderItems.length > 0
-                  ? orderItems
-                      .map((item) => `${item.quantity}× ${item.product_name || item.name}`)
-                      .join(", ")
-                  : "No items recorded"
               const orderDate = order.placed_at || order.date || ""
+              const isExpanded = expandedOrderId === order.id
+
               return (
-                <div key={order.id} className="product-row">
-                  <span>{order.id}</span>
-                  <span>{summary}</span>
-                  <span>{orderDate}</span>
-                  <span className="price-chip">${order.total}</span>
-                  <span className={order.status === "Delivered" ? "status success" : "status warn"}>
-                    {order.status}
-                  </span>
-                  <div className="action-badges">
-                    <button className="badge-btn primary" type="button" onClick={() => onNavigate?.("/")}>
-                      Reorder
-                    </button>
-                    <button
-                      className="badge-btn danger"
-                      type="button"
-                      onClick={() => {
-                        const helpPath = order.id ? `/help/${order.id}` : "/help"
-                        onNavigate?.(helpPath)
-                      }}
-                    >
-                      Help
-                    </button>
+                <div key={order.id}>
+                  <div className="product-row">
+                    <span>Order #{orders.length - index}</span>
+                    <span>{formatOrderDate(orderDate)}</span>
+                    <span className="price-chip">${order.total}</span>
+                    <span className={order.status === "Delivered" ? "status success" : "status warn"}>
+                      {order.status}
+                    </span>
+                    <div className="action-badges">
+                      <button className="badge-btn primary" type="button" onClick={() => onNavigate?.("/")}>
+                        Reorder
+                      </button>
+                      <button
+                        className="badge-btn danger"
+                        type="button"
+                        onClick={() => {
+                          const helpPath = order.id ? `/help/${order.id}` : "/help"
+                          onNavigate?.(helpPath)
+                        }}
+                      >
+                        Help
+                      </button>
+                    </div>
+                    <span>
+                      <button
+                        className="primary-btn zoom-on-hover summary-toggle"
+                        type="button"
+                        onClick={() => toggleExpansion(order.id)}
+                      >
+                        {isExpanded ? "Hide order" : "Show full order"}
+                      </button>
+                    </span>
                   </div>
+                  {isExpanded && (
+                    <div className="order-detail-row">
+                      <p>{renderOrderItems(orderItems)}</p>
+                    </div>
+                  )}
                 </div>
               )
             })}

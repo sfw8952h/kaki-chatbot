@@ -1,25 +1,11 @@
 // component: PromoCarousel (promotional slider featuring products)
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { products as seedProducts } from "../data/products"
+import { useCallback, useEffect, useState } from "react"
 import "./PromoCarousel.css"
 
-function PromoCarousel({ products = [] }) {
+function PromoCarousel({ promotions = [] }) {
   const [activeSlide, setActiveSlide] = useState(0)
-  const heroProducts = products.length ? products : seedProducts
-  const promoSlides = useMemo(
-    () =>
-      heroProducts.slice(0, 3).map((product, index) => ({
-        id: product.slug || `promo-${index}`,
-        badge: index === 0 ? "Fresh savings" : index === 1 ? "Bakery favorite" : "Pantry pick",
-        headline: `${product.name} — member price`,
-        detail: `${product.desc} Now only $${product.price} while fresh stock lasts.`,
-        actionLabel: "Add to cart",
-        actionUrl: `/product/${product.slug}`,
-        note: `Limited batches from ${product.brand}`,
-      })),
-    [heroProducts],
-  )
-  const slideCount = promoSlides.length
+  const slides = promotions.length ? promotions : []
+  const slideCount = slides.length
 
   if (!slideCount) {
     return null
@@ -51,21 +37,24 @@ function PromoCarousel({ products = [] }) {
             transform: `translateX(-${activeSlide * 100}%)`,
           }}
         >
-          {promoSlides.map((slide) => (
-            <article key={slide.id} className="promo-slide">
-              <div className="promo-slide-copy">
-                <p className="promo-slide-badge">{slide.badge}</p>
-                <h2>{slide.headline}</h2>
-                <p>{slide.detail}</p>
-        <div className="promo-slide-actions">
-          <a className="primary-btn promo-slide-btn" href={slide.actionUrl}>
-            Go to product
-          </a>
-                  {slide.note && <span className="promo-slide-note">{slide.note}</span>}
+          {slides.map((slide) => {
+            const actionUrl = slide.actionUrl || (slide.slug ? `/product/${slide.slug}` : "#")
+            return (
+              <article key={slide.id} className="promo-slide">
+                <div className="promo-slide-copy">
+                  <p className="promo-slide-badge">{slide.badge}</p>
+                  <h2>{slide.headline}</h2>
+                  <p>{slide.detail}</p>
+                  <div className="promo-slide-actions">
+                    <a className="primary-btn promo-slide-btn" href={actionUrl}>
+                      {slide.actionLabel || "Go to product"}
+                    </a>
+                    {slide.note && <span className="promo-slide-note">{slide.note}</span>}
+                  </div>
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            )
+          })}
         </div>
       </div>
       <div className="promo-carousel-controls">

@@ -21,6 +21,8 @@ import ProductPage from "./pages/ProductPage"
 import MembershipPage from "./pages/MembershipPage"
 import ProfilePage from "./pages/ProfilePage"
 import LocationsPage from "./pages/LocationsPage"
+import SupplierLoginPage from "./pages/SupplierLoginPage"
+import SupplierSignUpPage from "./pages/SupplierSignUpPage"
 import { POINTS_PER_DOLLAR, getTierByPoints } from "./data/membershipTiers"
 import { supabase } from "./lib/supabaseClient"
 import { products as seedProducts } from "./data/products"
@@ -32,6 +34,21 @@ const toPriceNumber = (value) => {
   const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""))
   return Number.isFinite(parsed) ? parsed : 0
 }
+
+const createPromotionFromProduct = (product, index) => ({
+  id: product.slug || `promo-${index}`,
+  badge:
+    index === 0 ? "Fresh savings" : index === 1 ? "Bakery favorite" : "Pantry pick",
+  headline: `${product.name} — member price`,
+  detail: `${product.desc} Now only $${product.price} while fresh stock lasts.`,
+  slug: product.slug,
+  actionLabel: "Go to product",
+  actionUrl: `/product/${product.slug}`,
+  note: `Limited batches from ${product.brand}`,
+})
+
+const buildDefaultPromotions = (productsList = []) =>
+  (productsList || []).slice(0, 3).map((product, index) => createPromotionFromProduct(product, index))
 
 function App() {
   const rawBasePath = import.meta.env.BASE_URL || "/"
@@ -67,6 +84,7 @@ function App() {
   const [cartItems, setCartItems] = useState([])
   const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.toLowerCase()
   const [orders, setOrders] = useState([])
+  const [promotions, setPromotions] = useState(() => buildDefaultPromotions(seedProducts))
 
   useEffect(() => {
     const handlePop = () => setCurrentPath(normalizePath(window.location.pathname))
@@ -191,6 +209,11 @@ function App() {
     if (!id) return
     setFeedbackEntries((prev) => prev.filter((entry) => entry.id !== id))
   }
+
+  const handlePromotionsUpdate = useCallback((nextPromotions) => {
+    if (!Array.isArray(nextPromotions)) return
+    setPromotions(nextPromotions)
+  }, [])
 
   const addToCart = useCallback((product, quantity = 1) => {
     if (!product) return
@@ -654,6 +677,10 @@ function App() {
     const isAdmin = role === "admin"
     const isSupplier = role === "supplier"
 
+    if (currentPath === "/supplier-signup")
+      return <SupplierSignUpPage onNavigate={navigate} />
+    if (currentPath === "/supplier-login")
+      return <SupplierLoginPage onNavigate={navigate} />
     if (currentPath === "/signup") return <SignUpPage onNavigate={navigate} />
     if (currentPath === "/login") return <LoginPage onNavigate={navigate} />
     if (currentPath === "/cart")
@@ -694,6 +721,8 @@ function App() {
           storeLocations={storeLocations}
           onStoreUpsert={handleStoreUpsert}
           onFeedbackDelete={handleFeedbackDeleted}
+          promotions={promotions}
+          onPromotionsUpdate={handlePromotionsUpdate}
         />
       )
     }
@@ -768,7 +797,7 @@ function App() {
     }
     return (
       <>
-        <PromoCarousel products={catalog} />
+        <PromoCarousel promotions={promotions} />
         <GroceryShowcase
           onNavigate={navigate}
           products={filteredCatalog}
@@ -810,6 +839,15 @@ function App() {
         {profile?.role === "admin" && (
           <button className="top-link" type="button" onClick={() => navigate("/admin")}>
             Admin Center
+          </button>
+        )}
+        {!sessionUser && (
+          <button
+            className="top-link top-link--right"
+            type="button"
+            onClick={() => navigate("/supplier-login")}
+          >
+            Supplier login
           </button>
         )}
       </div>
