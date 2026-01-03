@@ -171,7 +171,14 @@ const languages = [
   { code: "ta", label: "Tamil" },
 ]
 
-function Chatbot({ catalog = [], storeLocations = [], onNavigate = () => {} }) {
+function Chatbot({
+  catalog = [],
+  storeLocations = [],
+  userProfile = null,
+  orders = [],
+  onNavigate = () => {},
+  onAddToCart = () => {},
+}) {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState(initialMessages)
   const [draft, setDraft] = useState("")
@@ -254,6 +261,111 @@ function Chatbot({ catalog = [], storeLocations = [], onNavigate = () => {} }) {
       if (typeof onNavigate === "function") onNavigate(normalized)
     },
     [allowedNavigationSet, onNavigate],
+  )
+
+  const normalizeCommandText = useCallback((value) => {
+    if (!value) return ""
+    return value
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+  }, [])
+
+  const findProductByName = useCallback(
+    (hint) => {
+      const normalizedHint = normalizeCommandText(hint)
+      if (!normalizedHint) return null
+      if (!Array.isArray(catalog)) return null
+
+      const slugMatch = catalog.find(
+        (product) => (product.slug || "").toLowerCase() === normalizedHint,
+      )
+      if (slugMatch) return slugMatch
+
+      const nameMatch = catalog.find((product) =>
+        (product.name || product.title || "").toLowerCase().includes(normalizedHint),
+      )
+      if (nameMatch) return nameMatch
+
+      return catalog.find((product) =>
+        (product.brand || product.tag || "").toLowerCase().includes(normalizedHint),
+      )
+    },
+    [catalog, normalizeCommandText],
+  )
+
+  const handleAddToCartIntent = useCallback(
+    (text) => {
+      const match = text.match(/add\s+(\d+)?\s*(?:x|pcs?|pieces?)?\s*(.+?)\s+to\s+(?:my\s+)?cart/i)
+      if (!match) return null
+      const quantity = match[1] ? Math.max(1, Number(match[1])) : 1
+      const productHint = match[2].trim()
+      if (!productHint) return null
+      const product = findProductByName(productHint)
+      if (!product) {
+        return `I couldn't find "${productHint}" in the catalog. Could you try another name?`
+      }
+      onAddToCart?.(product, quantity)
+      return `Added ${quantity} × ${product.name || product.slug} to your cart.`
+    },
+    [findProductByName, onAddToCart],
+  )
+
+  const handleShowProductIntent = useCallback(
+    (text) => {
+      const match = text.match(/(?:show|view|open|find|tell me about)\s+(?:me\s+)?(.+?)(?:$|\?)/i)
+      if (!match) return null
+      const productHint = match[1].trim()
+      const product = findProductByName(productHint)
+      if (!product || !product.slug) return null
+      safeNavigate(`/product/${product.slug}`)
+      return `Opening ${product.name || product.slug} for you.`
+    },
+    [findProductByName, safeNavigate],
+  )
+
+  const handleSpecialIntent = useCallback(
+    (text) => {
+      if (!text) return null
+      const normalized = normalizeCommandText(text)
+
+      if (/(purchase history|order history|past orders|my orders)/.test(normalized)) {
+        safeNavigate("/history")
+        return "Taking you to your purchase history."
+      }
+
+      if (/(where.*order|order status|track.*order)/.test(normalized)) {
+        safeNavigate("/tracking")
+        const latest = Array.isArray(orders) ? orders[0] : null
+        const orderSummary = latest
+          ? `Your most recent order (${latest.id || "latest"}) is ${latest.status || "processing"}.`
+          : "I don't see any orders yet."
+        return `${orderSummary} I'll open the tracking page for you.`
+      }
+
+      if (/(membership|tier|loyalty|status)/.test(normalized)) {
+        const tier = userProfile?.membership_tier || "FreshMart Member"
+        const points = userProfile?.membership_points ?? 0
+        return `You're currently on the ${tier} tier with ${points} point${points === 1 ? "" : "s"}.`
+      }
+
+      const addReply = handleAddToCartIntent(text)
+      if (addReply) return addReply
+
+      const showReply = handleShowProductIntent(text)
+      if (showReply) return showReply
+
+      return null
+    },
+    [
+      handleAddToCartIntent,
+      handleShowProductIntent,
+      normalizeCommandText,
+      orders,
+      safeNavigate,
+      userProfile,
+    ],
   )
 
   const createGroundedPrompt = useCallback(
@@ -345,6 +457,14 @@ function Chatbot({ catalog = [], storeLocations = [], onNavigate = () => {} }) {
 
     try {
       setIsSending(true)
+      const intentReply = handleSpecialIntent(trimmed)
+      if (intentReply) {
+        setMessages((prev) => [
+          ...prev,
+          { id: Date.now() + 1, text: intentReply, from: "bot" },
+        ])
+        return
+      }
 
       // if you set a backend endpoint, we call it; otherwise we go direct to groq
       const useBackend = Boolean(backendEndpoint)

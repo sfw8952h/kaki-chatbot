@@ -891,7 +891,9 @@ function App() {
         catalog={catalog}
         storeLocations={storeLocations}
         userProfile={profile}
+        orders={orders}
         onNavigate={navigate}
+        onAddToCart={addToCart}
       />
     </div>
   )
