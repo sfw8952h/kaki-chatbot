@@ -32,6 +32,7 @@ const STATIC_NAV_TARGETS = [
   { label: "Terms", path: "/terms" },
   { label: "Privacy", path: "/privacy" },
   { label: "Profile", path: "/profile" },
+  { label: "Recipes", path: "/recipes" },
 ]
 
 const dayLabels = {
@@ -300,7 +301,7 @@ const normalizeCommandText = useCallback((value) => {
         { regex: /(go to|open|show)\s+(purchase history|order history|past orders)/, path: "/history", reply: "Showing your purchase history." },
         { regex: /(go to|open|show)\s+(order tracking|track order)/, path: "/tracking", reply: "Taking you to order tracking." },
         { regex: /(go to|open|show)\s+(membership|tier)/, path: "/membership", reply: "Opening your membership page." },
-        { regex: /(recommend|suggest|show)\s+(recipes?|meals)/, path: "/recipes", reply: "Here are recipe ideas for you." },
+        { regex: /(recommend|reccomend|suggest|show)\s+(recipes?|meals?)/, path: "/recipes", reply: "Here are recipe ideas for you." },
         { regex: /(supplier login|supplier|vendor)/, path: "/supplier-login", reply: "Redirecting you to the supplier login." },
       ]
       const match = shortcuts.find((item) => item.regex.test(normalized))
