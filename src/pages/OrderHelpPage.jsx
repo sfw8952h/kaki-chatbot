@@ -40,7 +40,7 @@ function OrderHelpPage({ orderId, orders = [], onNavigate }) {
           <p className="dash-label">Need help?</p>
           <strong>Choose how we can assist with {referenceLabel}</strong>
           <p className="guest-detail">
-            We‚Äôll guide you through the right next steps. Pick the topic that best matches your need and we‚Äôll
+            We guide you through the right next steps. Pick the topic that best matches your need and we‚
             open a support email with everything pre-filled.
           </p>
         </div>
@@ -76,7 +76,7 @@ function OrderHelpPage({ orderId, orders = [], onNavigate }) {
       <div className="help-note">
         <p>
           Prefer chat instead? Reach us at <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> or call
-          (555) 012-3456 and mention {referenceLabel}.
+          1212121212 and mention {referenceLabel}.
         </p>
       </div>
     </section>

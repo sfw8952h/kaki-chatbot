@@ -279,7 +279,7 @@ function Chatbot({
     [allowedNavigationSet, onNavigate],
   )
 
-  const normalizeCommandText = useCallback((value) => {
+const normalizeCommandText = useCallback((value) => {
     if (!value) return ""
     return value
       .toLowerCase()
@@ -287,6 +287,28 @@ function Chatbot({
       .replace(/\s+/g, " ")
       .trim()
   }, [])
+
+  const handleShortcutNavigation = useCallback(
+    (text) => {
+      if (!text) return null
+      const normalized = normalizeCommandText(text)
+      const shortcuts = [
+        { regex: /(go to|open|show)\s+(login|sign in)/, path: "/login", reply: "Heading to login for you." },
+        { regex: /(go to|open|show)\s+(supplier login|supplier|vendor)/, path: "/supplier-login", reply: "Redirecting you to the supplier login." },
+        { regex: /(go to|open|show)\s+(cart|bag)/, path: "/cart", reply: "Opening your cart now." },
+        { regex: /(go to|open|show)\s+(purchase history|order history|past orders)/, path: "/history", reply: "Showing your purchase history." },
+        { regex: /(go to|open|show)\s+(order tracking|track order)/, path: "/tracking", reply: "Taking you to order tracking." },
+        { regex: /(go to|open|show)\s+(membership|tier)/, path: "/membership", reply: "Opening your membership page." },
+        { regex: /(recommend|suggest|show)\s+(recipes?|meals)/, path: "/recipes", reply: "Here are recipe ideas for you." },
+        { regex: /(supplier login|supplier|vendor)/, path: "/supplier-login", reply: "Redirecting you to the supplier login." },
+      ]
+      const match = shortcuts.find((item) => item.regex.test(normalized))
+      if (!match) return null
+      safeNavigate(match.path)
+      return match.reply
+    },
+    [normalizeCommandText, safeNavigate],
+  )
 
   const findProductByName = useCallback(
     (hint) => {
@@ -344,6 +366,8 @@ function Chatbot({
   const handleSpecialIntent = useCallback(
     (text) => {
       if (!text) return null
+      const shortcutReply = handleShortcutNavigation(text)
+      if (shortcutReply) return shortcutReply
       const normalized = normalizeCommandText(text)
 
       if (/(purchase history|order history|past orders|my orders)/.test(normalized)) {
