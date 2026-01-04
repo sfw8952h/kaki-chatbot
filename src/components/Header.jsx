@@ -4,7 +4,16 @@ import "./Header.css"
 import { FaSearch, FaShoppingCart } from "react-icons/fa"
 import { MdLocationOn } from "react-icons/md"
 
-function Header({ onNavigate, user, profileName, onLogout, searchTerm, onSearch, cartCount = 0 }) {
+function Header({
+  onNavigate,
+  onHomeReset,
+  user,
+  profileName,
+  onLogout,
+  searchTerm,
+  onSearch,
+  cartCount = 0,
+}) {
   useEffect(() => {
     document.body.classList.remove("dark-mode")
   }, [])
@@ -19,8 +28,16 @@ function Header({ onNavigate, user, profileName, onLogout, searchTerm, onSearch,
         <button
           className="logo"
           type="button"
-          onClick={() => onNavigate?.("/")}
-          aria-label="Go to homepage"
+          onClick={() => {
+            if (onHomeReset) {
+              onHomeReset()
+            } else {
+              onNavigate?.("/")
+              onSearch?.("")
+              window.scrollTo({ top: 0, behavior: "smooth" })
+            }
+          }}
+          aria-label="Refresh home"
         >
           Kaki
         </button>

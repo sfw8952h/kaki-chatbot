@@ -2,15 +2,6 @@
 import { useState } from "react"
 import "./GroceryShowcase.css"
 
-const categories = [
-  { label: "Vegetable", hint: "Local market" },
-  { label: "Snacks & Breads", hint: "In store delivery" },
-  { label: "Fruits", hint: "Chemical free" },
-  { label: "Chicken", hint: "Frozen meal" },
-  { label: "Milk & Dairy", hint: "Process food" },
-  { label: "See all", hint: "Browse aisles", highlight: true },
-]
-
 function GroceryShowcase({ onNavigate, products, searchTerm, onSearch, onAddToCart }) {
   const hasQuery = !!searchTerm?.trim()
   const [quantities, setQuantities] = useState({})
@@ -57,22 +48,6 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch, onAddToCa
   return (
     <section className="grocery-showcase fade-in">
       <div className="result-count standalone">{resultSummary}</div>
-
-      <section className="category-panel">
-        <div className="category-grid">
-          {categories.map((category) => (
-            <article
-              key={category.label}
-              className={`category-chip ${category.highlight ? "category-chip--highlight" : ""}`}
-            >
-              <div>
-                <strong>{category.label}</strong>
-                <p>{category.hint}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
 
       {products.length === 0 ? (
         <div className="empty-search">

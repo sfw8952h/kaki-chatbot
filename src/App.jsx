@@ -79,12 +79,14 @@ function App() {
   const [proposals, setProposals] = useState([])
   const [feedbackEntries, setFeedbackEntries] = useState([])
   const [catalog, setCatalog] = useState([])
+  const [catalogSource, setCatalogSource] = useState("seed")
   const [storeLocations, setStoreLocations] = useState(seedStoreLocations)
   const [searchTerm, setSearchTerm] = useState("")
   const [cartItems, setCartItems] = useState([])
   const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.toLowerCase()
   const [orders, setOrders] = useState([])
   const [promotions, setPromotions] = useState(() => buildDefaultPromotions(seedProducts))
+  const [recipeSuggestion, setRecipeSuggestion] = useState(null)
 
   useEffect(() => {
     const handlePop = () => setCurrentPath(normalizePath(window.location.pathname))
@@ -335,6 +337,7 @@ function App() {
   const loadCatalog = useCallback(async () => {
     if (!supabase) {
       setCatalog(seedProducts.map(mapAdminProductToFront))
+      setCatalogSource("seed")
       return
     }
     const { data, error } = await supabase
@@ -346,9 +349,11 @@ function App() {
     if (error) {
       console.warn("Unable to load products, falling back to seed data", error)
       setCatalog(seedProducts.map(mapAdminProductToFront))
+      setCatalogSource("seed")
       return
     }
     setCatalog((data || []).map(mapAdminProductToFront))
+    setCatalogSource("supabase")
   }, [mapAdminProductToFront])
 
   const loadUserOrders = useCallback(async () => {
@@ -657,20 +662,76 @@ function App() {
     [currentPath, navigate]
   )
 
+  const handleHomeReset = useCallback(() => {
+    setSearchTerm("")
+    setRecipeSuggestion(null)
+    navigate("/")
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }, [navigate])
+
   const filteredCatalog = useMemo(() => {
-    const term = (searchTerm || "").trim().toLowerCase()
-    if (!term) return catalog
-    return catalog.filter((product) => {
-      const fields = [
-        product.name,
-        product.tag,
-        product.category,
-        product.brand,
-        product.desc,
-      ]
-      return fields.some((field) => field && field.toLowerCase().includes(term))
+    const normalize = (value) =>
+      String(value || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+
+    const stopWords = new Set([
+      "fresh",
+      "large",
+      "small",
+      "medium",
+      "cup",
+      "cups",
+      "tbsp",
+      "tsp",
+      "tablespoon",
+      "teaspoon",
+      "chopped",
+      "minced",
+      "diced",
+      "sliced",
+      "cooked",
+      "uncooked",
+      "optional",
+      "ground",
+      "peeled",
+      "oil",
+    ])
+
+    const ingredientTerms = recipeSuggestion
+      ? recipeSuggestion.ingredients.map((item) => normalize(item)).filter(Boolean)
+      : []
+
+    const ingredientKeywords = ingredientTerms.flatMap((term) => {
+      const tokens = term.split(" ").filter((token) => token && !stopWords.has(token))
+      return [term, ...tokens.filter((token) => token.length >= 3)]
     })
-  }, [catalog, searchTerm])
+
+    let baseList = catalog
+
+    if (ingredientKeywords.length) {
+      baseList = catalog.filter((product) => {
+        const haystack = normalize(
+          [product.name, product.tag, product.category, product.brand, product.desc].join(" "),
+        )
+        return ingredientKeywords.some((term) => haystack.includes(term))
+      })
+    }
+
+    const term = normalize(searchTerm)
+    if (!term) return baseList
+    return baseList.filter((product) => {
+      const fields = [product.name, product.tag, product.category, product.brand, product.desc]
+      return fields.some((field) => normalize(field).includes(term))
+    })
+  }, [catalog, searchTerm, recipeSuggestion])
+
+  const catalogPromotions = useMemo(() => {
+    if (catalogSource !== "supabase") return []
+    return buildDefaultPromotions(catalog)
+  }, [catalog, catalogSource])
 
   const mainContent = useMemo(() => {
     const role = profile?.role || "customer"
@@ -795,9 +856,33 @@ function App() {
       const slug = currentPath.replace("/product/", "")
       return <ProductPage slug={slug} products={catalog} onAddToCart={addToCart} />
     }
+    const activePromotions =
+      catalogSource === "supabase" && catalogPromotions.length ? catalogPromotions : promotions
+    const hasSearch = (searchTerm || "").trim().length > 0 || Boolean(recipeSuggestion)
     return (
       <>
-        <PromoCarousel promotions={promotions} />
+        {recipeSuggestion && (
+          <section className="recipe-spotlight">
+            <div className="recipe-spotlight-head">
+              <div>
+                <p className="eyebrow">Chatbot pick</p>
+                <h2>{recipeSuggestion.title}</h2>
+                <p className="muted">{recipeSuggestion.description}</p>
+              </div>
+              <button className="ghost-btn" type="button" onClick={() => setRecipeSuggestion(null)}>
+                Clear
+              </button>
+            </div>
+            <div className="recipe-spotlight-grid">
+              {recipeSuggestion.ingredients.map((item) => (
+                <span key={item} className="pill pill-soft">
+                  {item}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
+        {!hasSearch && <PromoCarousel promotions={activePromotions} />}
         <GroceryShowcase
           onNavigate={navigate}
           products={filteredCatalog}
@@ -826,6 +911,7 @@ function App() {
     updateCartQuantity,
     orders,
     handleMembershipUpdate,
+    recipeSuggestion,
   ])
 
   return (
@@ -853,6 +939,7 @@ function App() {
       </div>
       <Header
         onNavigate={navigate}
+        onHomeReset={handleHomeReset}
         user={sessionUser}
         profileName={profile?.full_name}
         onLogout={handleLogout}
@@ -894,6 +981,7 @@ function App() {
         orders={orders}
         onNavigate={navigate}
         onAddToCart={addToCart}
+        onRecipeSuggestion={setRecipeSuggestion}
       />
     </div>
   )

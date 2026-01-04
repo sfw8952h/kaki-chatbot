@@ -98,6 +98,34 @@
   background: rgba(13, 162, 116, 0.08);
 }
 
+.recipe-spotlight {
+  background: rgba(13, 162, 116, 0.08);
+  border: 1px solid rgba(13, 162, 116, 0.2);
+  border-radius: 22px;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: var(--card-shadow);
+}
+
+.recipe-spotlight-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.recipe-spotlight-head h2 {
+  margin-bottom: 6px;
+}
+
+.recipe-spotlight-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

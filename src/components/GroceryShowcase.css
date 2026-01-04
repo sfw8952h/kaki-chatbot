@@ -52,49 +52,6 @@
   transform: translateY(-2px);
 }
 
-.category-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
-}
-
-.category-chip {
-  border-radius: 12px;
-  border: 1px solid rgba(15, 23, 42, 0.05);
-  padding: 10px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: #ffffff;
-}
-
-.chip-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: rgba(37, 99, 235, 0.15);
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.category-chip span {
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-
-.category-chip p {
-  margin: 2px 0 0;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-
-.category-chip--highlight {
-  background: #e7f5ec;
-  border-color: #b2ddc4;
-}
-
 .flash-deals {
   display: flex;
   flex-direction: column;
@@ -184,8 +141,9 @@
 
 .grocery-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 240px));
   gap: 20px;
+  justify-content: center;
 }
 
 .grocery-card {

@@ -15,6 +15,62 @@ const MAX_PRODUCT_NAV_LINKS = 24
 
 const NAV_DIRECTIVE_REGEX = /\[\[NAV:([^\]\s]+)\]\]/gi
 
+const RECIPE_IDEAS = [
+  {
+    keywords: ["soup", "broth", "stew", "ramen"],
+    title: "Hearty vegetable soup",
+    description: "A warming soup with aromatics and tender vegetables.",
+    ingredients: [
+      "Onion",
+      "Carrots",
+      "Garlic",
+      "Celery",
+      "Tomatoes",
+      "Vegetable stock",
+      "Fresh herbs",
+    ],
+  },
+  {
+    keywords: ["stir fry", "stir-fry", "fried rice", "noodles"],
+    title: "Quick stir-fry",
+    description: "Fast, high-heat veggies with a savory sauce.",
+    ingredients: [
+      "Garlic",
+      "Ginger",
+      "Mixed vegetables",
+      "Soy sauce",
+      "Sesame oil",
+      "Rice or noodles",
+    ],
+  },
+  {
+    keywords: ["salad", "greens", "grain bowl"],
+    title: "Fresh salad bowl",
+    description: "Crisp greens with bright, crunchy toppings.",
+    ingredients: [
+      "Mixed greens",
+      "Cucumber",
+      "Tomatoes",
+      "Avocado",
+      "Lemon",
+      "Olive oil",
+    ],
+  },
+  {
+    keywords: ["curry", "curry rice"],
+    title: "Simple curry",
+    description: "Comforting curry with a creamy, spiced base.",
+    ingredients: [
+      "Onion",
+      "Garlic",
+      "Curry paste",
+      "Coconut milk",
+      "Protein or vegetables",
+      "Rice",
+    ],
+  },
+]
+
 const STATIC_NAV_TARGETS = [
   { label: "Home", path: "/" },
   { label: "Sign up", path: "/signup" },
@@ -187,6 +243,7 @@ function Chatbot({
   orders = [],
   onNavigate = () => {},
   onAddToCart = () => {},
+  onRecipeSuggestion = () => {},
 }) {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState(initialMessages)
@@ -281,7 +338,7 @@ function Chatbot({
     [allowedNavigationSet, onNavigate],
   )
 
-const normalizeCommandText = useCallback((value) => {
+  const normalizeCommandText = useCallback((value) => {
     if (!value) return ""
     return value
       .toLowerCase()
@@ -289,6 +346,137 @@ const normalizeCommandText = useCallback((value) => {
       .replace(/\s+/g, " ")
       .trim()
   }, [])
+
+  const findRecipeIdea = useCallback(
+    (text) => {
+      const normalized = normalizeCommandText(text)
+      if (!normalized) return null
+      return RECIPE_IDEAS.find((idea) =>
+        idea.keywords.some((keyword) => normalized.includes(keyword)),
+      )
+    },
+    [normalizeCommandText],
+  )
+
+  const handleRecipeIntent = useCallback(
+    (text) => {
+      const idea = findRecipeIdea(text)
+      if (!idea) return null
+      onRecipeSuggestion?.({
+        title: idea.title,
+        description: idea.description,
+        ingredients: idea.ingredients,
+      })
+      safeNavigate("/")
+      return `I added the ingredients for ${idea.title} to the home page.`
+    },
+    [findRecipeIdea, onRecipeSuggestion, safeNavigate],
+  )
+
+  const extractDishName = useCallback((text) => {
+    if (!text) return null
+    const lowered = text.toLowerCase()
+    const match =
+      lowered.match(/(?:make|cook|prepare|recipe for|ingredients for|how to make)\s+(.+)/) ||
+      lowered.match(/(?:need|want)\s+to\s+(?:make|cook|prepare)\s+(.+)/)
+    if (!match || !match[1]) return null
+    return match[1].replace(/[?.!]+$/, "").trim()
+  }, [])
+
+  const parseRecipePayload = useCallback((rawText) => {
+    if (!rawText) return null
+    const trimmed = rawText.trim()
+    let payload = null
+    try {
+      payload = JSON.parse(trimmed)
+    } catch (_) {
+      const jsonMatch = trimmed.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        try {
+          payload = JSON.parse(jsonMatch[0])
+        } catch (_) {
+          payload = null
+        }
+      }
+    }
+    if (!payload) return null
+    const ingredients = Array.isArray(payload.ingredients)
+      ? payload.ingredients
+          .map((item) => {
+            if (!item) return ""
+            if (typeof item === "string") return item
+            if (typeof item === "object") {
+              return item.name || item.ingredient || item.item || ""
+            }
+            return String(item)
+          })
+          .filter(Boolean)
+          .slice(0, 10)
+      : []
+    if (!ingredients.length) return null
+    return {
+      title: payload.title || "Recipe ingredients",
+      description: payload.description || "Here are the key ingredients to get started.",
+      ingredients,
+    }
+  }, [])
+
+  const fetchRecipeFromGroq = useCallback(
+    async (dishName) => {
+      if (!groqSettings || !dishName) return null
+      const messagesPayload = [
+        {
+          role: "system",
+          content:
+            "You are a recipe assistant. Reply with JSON only: {\"title\":\"...\",\"description\":\"...\",\"ingredients\":[\"item1\",\"item2\"]}. Keep ingredients simple grocery items.",
+        },
+        {
+          role: "user",
+          content: `Give ingredients for ${dishName}.`,
+        },
+      ]
+
+      const response = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${groqSettings.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: groqSettings.model,
+          messages: messagesPayload,
+          temperature: 0.4,
+        }),
+      })
+
+      if (!response.ok) return null
+      const payload = await response.json()
+      const replyText =
+        payload?.choices
+          ?.map((choice) => choice?.message?.content || "")
+          .find((entry) => entry && entry.trim())
+          ?.trim() || ""
+      return parseRecipePayload(replyText)
+    },
+    [groqSettings, parseRecipePayload],
+  )
+
+  const handleDynamicRecipeIntent = useCallback(
+    async (text) => {
+      const dishName = extractDishName(text)
+      if (!dishName) return null
+      const groqRecipe = await fetchRecipeFromGroq(dishName)
+      if (groqRecipe) {
+        onRecipeSuggestion?.(groqRecipe)
+        safeNavigate("/")
+        return `I added the ingredients for ${groqRecipe.title} to the home page.`
+      }
+      const fallback = handleRecipeIntent(text)
+      if (fallback) return fallback
+      return `I can help list ingredients for "${dishName}" once the recipe assistant is available.`
+    },
+    [extractDishName, fetchRecipeFromGroq, handleRecipeIntent, onRecipeSuggestion, safeNavigate],
+  )
 
   const handleShortcutNavigation = useCallback(
     (text) => {
@@ -512,6 +700,15 @@ const normalizeCommandText = useCallback((value) => {
 
     try {
       setIsSending(true)
+      const recipeReply = await handleDynamicRecipeIntent(trimmed)
+      if (recipeReply) {
+        setMessages((prev) => [
+          ...prev,
+          { id: Date.now() + 1, text: recipeReply, from: "bot" },
+        ])
+        return
+      }
+
       const intentReply = handleSpecialIntent(trimmed)
       if (intentReply) {
         setMessages((prev) => [
