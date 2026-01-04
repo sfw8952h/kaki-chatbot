@@ -251,6 +251,7 @@ function Chatbot({
   const [language, setLanguage] = useState(languages[0].code)
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState("")
+  const [pendingCartChoice, setPendingCartChoice] = useState(null)
 
   useEffect(() => {
     const greeting = GREETING_BY_LANG[language] || GREETING_BY_LANG.en
@@ -529,6 +530,33 @@ function Chatbot({
     [catalog, normalizeCommandText],
   )
 
+  const findProductMatches = useCallback(
+    (hint) => {
+      const normalizedHint = normalizeCommandText(hint)
+      if (!normalizedHint) return []
+      if (!Array.isArray(catalog)) return []
+      const tokens = normalizedHint.split(" ").filter((token) => token.length >= 3)
+      return catalog
+        .filter((product) => {
+          const haystack = [
+            product.name,
+            product.slug,
+            product.tag,
+            product.category,
+            product.brand,
+            product.desc,
+          ]
+            .filter(Boolean)
+            .map((value) => normalizeCommandText(value))
+            .join(" ")
+          if (haystack.includes(normalizedHint)) return true
+          return tokens.some((token) => haystack.includes(token))
+        })
+        .slice(0, 5)
+    },
+    [catalog, normalizeCommandText],
+  )
+
   const handleAddToCartIntent = useCallback(
     (text) => {
       const match = text.match(/add\s+(\d+)?\s*(?:x|pcs?|pieces?)?\s*(.+?)\s+to\s+(?:my\s+)?cart/i)
@@ -536,14 +564,63 @@ function Chatbot({
       const quantity = match[1] ? Math.max(1, Number(match[1])) : 1
       const productHint = match[2].trim()
       if (!productHint) return null
-      const product = findProductByName(productHint)
-      if (!product) {
+      const matches = findProductMatches(productHint)
+      if (matches.length === 0) {
         return `I couldn't find "${productHint}" in the catalog. Could you try another name?`
       }
-      onAddToCart?.(product, quantity)
-      return `Added ${quantity} × ${product.name || product.slug} to your cart.`
+      if (matches.length === 1) {
+        const product = matches[0]
+        onAddToCart?.(product, quantity)
+        return `Added ${quantity} x ${product.name || product.slug} to your cart.`
+      }
+      setPendingCartChoice({ options: matches, quantity })
+      const list = matches
+        .map((item, index) => `${index + 1}) ${item.name || item.slug}`)
+        .join("\n")
+      return `I found multiple items. Which one do you want?\n${list}`
     },
-    [findProductByName, onAddToCart],
+    [findProductMatches, onAddToCart],
+  )
+
+  const handlePendingCartChoice = useCallback(
+    (text) => {
+      if (!pendingCartChoice) return null
+      const trimmed = String(text || "").trim()
+      const choiceIndex = Number(trimmed.match(/^\d+/)?.[0])
+      let product = null
+      if (
+        Number.isFinite(choiceIndex) &&
+        choiceIndex >= 1 &&
+        choiceIndex <= pendingCartChoice.options.length
+      ) {
+        product = pendingCartChoice.options[choiceIndex - 1]
+      } else {
+        const normalized = normalizeCommandText(trimmed)
+        product =
+          pendingCartChoice.options.find((option) => {
+            const haystack = [
+              option.name,
+              option.slug,
+              option.brand,
+              option.category,
+              option.desc,
+            ]
+              .filter(Boolean)
+              .map((value) => normalizeCommandText(value))
+              .join(" ")
+            return haystack.includes(normalized)
+          }) || null
+      }
+      if (!product) {
+        return "Please reply with the number of the item you want."
+      }
+      onAddToCart?.(product, pendingCartChoice.quantity || 1)
+      setPendingCartChoice(null)
+      return `Added ${pendingCartChoice.quantity || 1} x ${
+        product.name || product.slug
+      } to your cart.`
+    },
+    [normalizeCommandText, onAddToCart, pendingCartChoice],
   )
 
   const handleShowProductIntent = useCallback(
@@ -562,6 +639,8 @@ function Chatbot({
   const handleSpecialIntent = useCallback(
     (text) => {
       if (!text) return null
+      const pendingReply = handlePendingCartChoice(text)
+      if (pendingReply) return pendingReply
       const shortcutReply = handleShortcutNavigation(text)
       if (shortcutReply) return shortcutReply
       const normalized = normalizeCommandText(text)
@@ -603,6 +682,7 @@ function Chatbot({
     [
       handleAddToCartIntent,
       handleShowProductIntent,
+      handlePendingCartChoice,
       normalizeCommandText,
       orders,
       safeNavigate,
