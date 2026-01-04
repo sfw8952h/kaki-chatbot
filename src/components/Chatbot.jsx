@@ -19,6 +19,7 @@ const STATIC_NAV_TARGETS = [
   { label: "Home", path: "/" },
   { label: "Sign up", path: "/signup" },
   { label: "Log in", path: "/login" },
+  { label: "Supplier login", path: "/supplier-login" },
   { label: "Cart", path: "/cart" },
   { label: "Admin Center", path: "/admin" },
   { label: "Supplier Center", path: "/supplier" },
@@ -303,7 +304,13 @@ const normalizeCommandText = useCallback((value) => {
         { regex: /(supplier login|supplier|vendor)/, path: "/supplier-login", reply: "Redirecting you to the supplier login." },
       ]
       const match = shortcuts.find((item) => item.regex.test(normalized))
-      if (!match) return null
+      if (!match) {
+        if (normalized.includes("recipe") || normalized.includes("meal")) {
+          safeNavigate("/recipes")
+          return "Here are recipe ideas for you."
+        }
+        return null
+      }
       safeNavigate(match.path)
       return match.reply
     },
@@ -370,6 +377,12 @@ const normalizeCommandText = useCallback((value) => {
       if (shortcutReply) return shortcutReply
       const normalized = normalizeCommandText(text)
 
+      if (/(how many|count)\s+(stores|locations)/.test(normalized)) {
+        const total = Array.isArray(storeLocations) ? storeLocations.length : 0
+        safeNavigate("/locations")
+        return `We currently have ${total} store${total === 1 ? "" : "s"} in our network. Opening the store hours page for you.`
+      }
+
       if (/(purchase history|order history|past orders|my orders)/.test(normalized)) {
         safeNavigate("/history")
         return "Taking you to your purchase history."
@@ -405,6 +418,7 @@ const normalizeCommandText = useCallback((value) => {
       orders,
       safeNavigate,
       userProfile,
+      storeLocations,
     ],
   )
 
