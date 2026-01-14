@@ -1,7 +1,7 @@
 // component: Chatbot (interacts with Groq or optional backend)
-import { useCallback, useEffect, useMemo, useState } from "react"
-import "./Chatbot.css"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { FaComments } from "react-icons/fa"
+import "./Chatbot.css"
 
 const GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
 
@@ -251,6 +251,7 @@ function Chatbot({
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState("")
   const [pendingCartChoice, setPendingCartChoice] = useState(null)
+  const messagesEndRef = useRef(null)
 
   useEffect(() => {
     const greeting = GREETING_BY_LANG[language] || GREETING_BY_LANG.en
@@ -260,6 +261,10 @@ function Chatbot({
       return [updated, ...prev.slice(1)]
     })
   }, [language])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages, isSending, error])
 
   // optional backend (keep if you still want a server to proxy / log / enforce policies)
   const backendEndpoint = useMemo(() => import.meta.env.VITE_BACKEND_CHAT_URL || "", [])
@@ -991,6 +996,7 @@ function Chatbot({
               )
             })}
             {isSending && <p className="bot subtle">Assistant is thinking...</p>}
+            <div ref={messagesEndRef} />
 
             <div className="chatbot-suggestions in-chat">
               {["Find rice", "Make soup", "Track my order", "Show cart"].map((label) => (
