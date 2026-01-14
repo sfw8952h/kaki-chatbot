@@ -358,19 +358,62 @@ function Chatbot({
     [normalizeCommandText],
   )
 
+  const findProductMatch = useCallback(
+    (ingredient) => {
+      if (!ingredient || !Array.isArray(catalog)) return null
+      const normalized = normalizeCommandText(ingredient)
+      if (!normalized) return null
+      const tokens = normalized.split(" ").filter((token) => token.length >= 3)
+      const wordRegexes = tokens.map((token) => new RegExp(`\\b${token}\\b`, "i"))
+      return (
+        catalog.find((product) => {
+          const inStock = Number(product.onlineStock ?? product.stock ?? 0) > 0
+          if (!inStock) return false
+          const haystack = normalizeCommandText(
+            `${product.name || ""} ${product.slug || ""}`,
+          )
+          if (!haystack) return false
+          if (haystack.includes(normalized)) return true
+          return wordRegexes.some((regex) => regex.test(haystack))
+        }) || null
+      )
+    },
+    [catalog, normalizeCommandText],
+  )
+
+  const buildRecipeCard = useCallback(
+    (recipe) => {
+      if (!recipe) return null
+      const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : []
+      const items = ingredients
+        .map((ingredient) => {
+          const match = findProductMatch(ingredient)
+          if (!match) return null
+          return {
+            name: ingredient,
+            product: match,
+            image:
+              match.image ||
+              "https://via.placeholder.com/120x120.png?text=Ingredient",
+          }
+        })
+        .filter(Boolean)
+      return {
+        title: recipe.title,
+        description: recipe.description,
+        items,
+      }
+    },
+    [findProductMatch],
+  )
+
   const handleRecipeIntent = useCallback(
     (text) => {
       const idea = findRecipeIdea(text)
       if (!idea) return null
-      onRecipeSuggestion?.({
-        title: idea.title,
-        description: idea.description,
-        ingredients: idea.ingredients,
-      })
-      safeNavigate("/")
-      return `I added the ingredients for ${idea.title} to the home page.`
+      return buildRecipeCard(idea)
     },
-    [findRecipeIdea, onRecipeSuggestion, safeNavigate],
+    [buildRecipeCard, findRecipeIdea],
   )
 
   const extractDishName = useCallback((text) => {
@@ -467,15 +510,13 @@ function Chatbot({
       if (!dishName) return null
       const groqRecipe = await fetchRecipeFromGroq(dishName)
       if (groqRecipe) {
-        onRecipeSuggestion?.(groqRecipe)
-        safeNavigate("/")
-        return `I added the ingredients for ${groqRecipe.title} to the home page.`
+        return buildRecipeCard(groqRecipe)
       }
       const fallback = handleRecipeIntent(text)
       if (fallback) return fallback
       return `I can help list ingredients for "${dishName}" once the recipe assistant is available.`
     },
-    [extractDishName, fetchRecipeFromGroq, handleRecipeIntent, onRecipeSuggestion, safeNavigate],
+    [buildRecipeCard, extractDishName, fetchRecipeFromGroq, handleRecipeIntent],
   )
 
   const handleShortcutNavigation = useCallback(
@@ -780,6 +821,13 @@ function Chatbot({
     try {
       setIsSending(true)
       const recipeReply = await handleDynamicRecipeIntent(trimmed)
+      if (recipeReply && typeof recipeReply === "object") {
+        setMessages((prev) => [
+          ...prev,
+          { id: Date.now() + 1, type: "recipe", from: "bot", data: recipeReply },
+        ])
+        return
+      }
       if (recipeReply) {
         setMessages((prev) => [
           ...prev,
@@ -888,11 +936,46 @@ function Chatbot({
           </div>
 
           <div className="messages">
-            {messages.map((message) => (
-              <p key={message.id} className={message.from}>
-                {message.text}
-              </p>
-            ))}
+            {messages.map((message) => {
+              if (message.type === "recipe") {
+                const recipe = message.data
+                return (
+                  <div key={message.id} className={`chatbot-card ${message.from}`}>
+                    <div className="chatbot-card-head">
+                      <div>
+                        <strong>{recipe.title}</strong>
+                        <p>{recipe.description}</p>
+                      </div>
+                    </div>
+                    {recipe.items.length === 0 && (
+                      <p className="chatbot-card-note">No in-stock ingredients found yet.</p>
+                    )}
+                    <div className="chatbot-card-grid">
+                      {recipe.items.map((item) => (
+                        <div key={item.name} className="chatbot-card-item">
+                          <img src={item.image} alt={item.name} />
+                          <div>
+                            <span>{item.product?.name || item.name}</span>
+                            <button
+                              type="button"
+                              className="chatbot-card-btn"
+                              onClick={() => onAddToCart?.(item.product, 1)}
+                            >
+                              Add to cart
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              }
+              return (
+                <p key={message.id} className={message.from}>
+                  {message.text}
+                </p>
+              )
+            })}
             {isSending && <p className="bot subtle">Assistant is thinking...</p>}
           </div>
 

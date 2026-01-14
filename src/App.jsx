@@ -1,4 +1,4 @@
-// component: App (routing + layout shell)
+﻿// component: App (routing + layout shell)
 import { useCallback, useEffect, useMemo, useState } from "react"
 import "./App.css"
 import Header from "./components/Header"
@@ -39,9 +39,10 @@ const createPromotionFromProduct = (product, index) => ({
   id: product.slug || `promo-${index}`,
   badge:
     index === 0 ? "Fresh savings" : index === 1 ? "Bakery favorite" : "Pantry pick",
-  headline: `${product.name} — member price`,
+  headline: `${product.name} â€” member price`,
   detail: `${product.desc} Now only $${product.price} while fresh stock lasts.`,
   slug: product.slug,
+  image: product.image,
   actionLabel: "Go to product",
   actionUrl: `/product/${product.slug}`,
   note: `Limited batches from ${product.brand}`,
@@ -955,31 +956,63 @@ function App() {
         cartCount={cartCount}
       />
       <main className="page-body">{mainContent}</main>
-      <footer className="footer-links">
-        <button type="button" onClick={() => navigate("/history")}>
-          Purchase history
-        </button>
-        <button type="button" onClick={() => navigate("/tracking")}>
-          Order tracking
-        </button>
-        <button type="button" onClick={() => navigate("/feedback")}>
-          Feedback
-        </button>
-        <button type="button" onClick={() => navigate("/about")}>
-          About
-        </button>
-        <button type="button" onClick={() => navigate("/locations")}>
-          Store locations
-        </button>
-        <button type="button" onClick={() => navigate("/membership")}>
-          Membership
-        </button>
-        <button type="button" onClick={() => navigate("/terms")}>
-          Terms
-        </button>
-        <button type="button" onClick={() => navigate("/privacy")}>
-          Privacy
-        </button>
+      <footer className="site-footer">
+        <div className="footer-main">
+          <div className="footer-brand">
+            <div className="footer-logo">
+              <span className="footer-logo-mark">K</span>
+              <span className="footer-logo-text">Kaki</span>
+            </div>
+            <p className="footer-blurb">
+              Fresh groceries, curated weekly. Trusted by busy households across Singapore.
+            </p>
+            <p className="footer-subtitle">Accepted payments</p>
+            <div className="footer-payments">
+              <span className="payment-pill">Visa</span>
+              <span className="payment-pill">Mastercard</span>
+              <span className="payment-pill">Apple Pay</span>
+              <span className="payment-pill">GrabPay</span>
+              <span className="payment-pill">PayNow</span>
+            </div>
+          </div>
+
+          <div className="footer-columns">
+            <div className="footer-col">
+              <p className="footer-title">About us</p>
+              <button type="button" onClick={() => navigate("/about")}>
+                About
+              </button>
+              <button type="button" onClick={() => navigate("/feedback")}>
+                Feedback
+              </button>
+              <button type="button" onClick={() => navigate("/locations")}>
+                Store locations
+              </button>
+            </div>
+            <div className="footer-col">
+              <p className="footer-title">Services</p>
+              <button type="button" onClick={() => navigate("/membership")}>
+                Membership
+              </button>
+              <button type="button" onClick={() => navigate("/tracking")}>
+                Order tracking
+              </button>
+              <button type="button" onClick={() => navigate("/history")}>
+                Purchase history
+              </button>
+            </div>
+            <div className="footer-col">
+              <p className="footer-title">Help</p>
+              <button type="button" onClick={() => navigate("/terms")}>
+                Terms
+              </button>
+              <button type="button" onClick={() => navigate("/privacy")}>
+                Privacy
+              </button>
+            </div>
+          </div>
+        </div>
+
       </footer>
       <Chatbot
         catalog={catalog}
@@ -995,3 +1028,4 @@ function App() {
 }
 
 export default App
+

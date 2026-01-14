@@ -2327,3 +2327,60 @@
     display: none;
   }
 }
+
+.order-confirmation-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.35);
+  display: grid;
+  place-items: center;
+  z-index: 40;
+  padding: 20px;
+}
+
+.order-confirmation-card {
+  width: min(420px, 92vw);
+  background: var(--surface);
+  border-radius: 22px;
+  padding: 26px 24px;
+  box-shadow: var(--panel-shadow);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.order-confirmation-icon {
+  width: 92px;
+  height: 92px;
+  margin: 0 auto;
+}
+
+.order-confirmation-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.order-confirmation-card h3 {
+  margin: 0;
+}
+
+.order-confirmation-card p {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.order-confirmation-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.order-confirmation-actions .ghost-btn,
+.order-confirmation-actions .primary-btn {
+  width: 100%;
+  justify-content: center;
+}
+

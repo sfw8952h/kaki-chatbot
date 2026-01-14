@@ -1,5 +1,5 @@
 // component: CartPage
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import "./Pages.css"
 
 function CartPage({
@@ -19,15 +19,6 @@ function CartPage({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
 
-  useEffect(() => {
-    if (!orderSuccess) return undefined
-    const timer = setTimeout(() => {
-      setOrderSuccess(false)
-      onNavigate?.("/history")
-    }, 1400)
-    return () => clearTimeout(timer)
-  }, [orderSuccess, onNavigate])
-
   const handleCheckoutClick = async () => {
     if (isEmpty || orderSuccess || saving) return
     setError("")
@@ -43,16 +34,16 @@ function CartPage({
       // IMPORTANT:
       // - total should be a number (not string)
       // - await onCheckout so we only redirect after supabase insert succeeds
-        await onCheckout?.({
-          items: items.map((item) => ({
-            slug: item.slug,
-            product_id: item.id ?? null, // optional if you have product uuid
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price,
-          })),
-          total: Number(formattedSubtotal),
-        })
+      await onCheckout?.({
+        items: items.map((item) => ({
+          slug: item.slug,
+          product_id: item.id ?? null, // optional if you have product uuid
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        total: Number(formattedSubtotal),
+      })
 
       setOrderSuccess(true)
     } catch (e) {
@@ -78,7 +69,12 @@ function CartPage({
                 <button className="ghost-btn" type="button" onClick={() => onNavigate?.("/")}>
                   Keep shopping
                 </button>
-                <button className="primary-btn" type="button" onClick={handleCheckoutClick} disabled={isEmpty || orderSuccess || saving}>
+                <button
+                  className="primary-btn"
+                  type="button"
+                  onClick={handleCheckoutClick}
+                  disabled={isEmpty || orderSuccess || saving}
+                >
                   {saving ? "Placing order..." : "Proceed to checkout"}
                 </button>
               </div>
@@ -103,7 +99,11 @@ function CartPage({
             {isEmpty ? (
               <div className="empty-cart">
                 <p>Your cart is empty. Add your favourite produce to get started.</p>
-                <button className="primary-btn zoom-on-hover" type="button" onClick={() => onNavigate?.("/")}>
+                <button
+                  className="primary-btn zoom-on-hover"
+                  type="button"
+                  onClick={() => onNavigate?.("/")}
+                >
                   Browse products
                 </button>
               </div>
@@ -111,12 +111,16 @@ function CartPage({
               items.map((item) => (
                 <article key={item.slug} className="cart-item">
                   <div className="cart-item-main">
-                    {item.thumbnail && <img src={item.thumbnail} alt={item.name} className="cart-thumb" />}
+                    {item.thumbnail && (
+                      <img src={item.thumbnail} alt={item.name} className="cart-thumb" />
+                    )}
                     <div>
                       <strong>{item.name}</strong>
                       <p>${item.price.toFixed(2)} each</p>
                     </div>
-                    <span className="cart-line-total">${(item.price * item.quantity).toFixed(2)}</span>
+                    <span className="cart-line-total">
+                      ${(item.price * item.quantity).toFixed(2)}
+                    </span>
                   </div>
 
                   <div className="cart-item-actions">
@@ -179,9 +183,55 @@ function CartPage({
             {isEmpty ? "Add items to checkout" : saving ? "Placing order..." : "Checkout securely"}
           </button>
 
-          {orderSuccess && <p className="success-text">Order success! Redirecting you to your recent orders…</p>}
+          {orderSuccess && (
+            <p className="success-text">Order confirmed. You can review details below.</p>
+          )}
         </aside>
       </div>
+
+      {orderSuccess && (
+        <div className="order-confirmation-overlay" role="dialog" aria-modal="true">
+          <div className="order-confirmation-card">
+            <div className="order-confirmation-icon" aria-hidden="true">
+              <svg viewBox="0 0 64 64" role="img" focusable="false">
+                <circle cx="32" cy="32" r="30" fill="#dff5e6" />
+                <path
+                  d="M19 33.5l8 8 18-20"
+                  fill="none"
+                  stroke="#0a6c51"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+            <h3>Order confirmed</h3>
+            <p>
+              We received your order. You'll get a confirmation email at{" "}
+              <strong>{user?.email || "your email"}</strong>.
+            </p>
+            <div className="order-confirmation-actions">
+              <button
+                className="ghost-btn"
+                type="button"
+                onClick={() => onNavigate?.("/history")}
+              >
+                View order details
+              </button>
+              <button
+                className="primary-btn"
+                type="button"
+                onClick={() => {
+                  setOrderSuccess(false)
+                  onNavigate?.("/")
+                }}
+              >
+                Continue shopping
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

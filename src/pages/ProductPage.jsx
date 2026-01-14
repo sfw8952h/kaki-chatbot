@@ -28,13 +28,6 @@ function ProductPage({ slug, products, onAddToCart }) {
         <div className="product-main">
           <img src={product.image} alt={product.name} className="product-image" />
         </div>
-        <div className="product-thumbs">
-          {[...Array(4)].map((_, idx) => (
-            <div key={idx} className="thumb">
-              <img src={product.image} alt={`${product.name} ${idx + 1}`} />
-            </div>
-          ))}
-        </div>
       </div>
 
       <div className="product-info">
@@ -74,10 +67,6 @@ function ProductPage({ slug, products, onAddToCart }) {
         </div>
 
         <div className="product-details">
-          <p className="label">SKU: MB3442</p>
-          <p className="label">
-            Categories: <a href="#">Produce</a>, <a href="#">Fresh</a>, <a href="#">Snacks</a>
-          </p>
           <p>{product.desc}. In stock and ready to ship.</p>
         </div>
         <div className="compare-row">

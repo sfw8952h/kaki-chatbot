@@ -52,6 +52,11 @@ function PromoCarousel({ promotions = [] }) {
                     {slide.note && <span className="promo-slide-note">{slide.note}</span>}
                   </div>
                 </div>
+                {slide.image && (
+                  <div className="promo-slide-media">
+                    <img src={slide.image} alt={slide.headline} />
+                  </div>
+                )}
               </article>
             )
           })}
