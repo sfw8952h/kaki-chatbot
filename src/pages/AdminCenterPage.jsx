@@ -91,6 +91,7 @@ function AdminCenterPage({
   onStoreUpsert,
   promotions = [],
   onPromotionsUpdate = () => {},
+  onNavigate = () => {},
 }) {
   const supabase = useMemo(() => {
     try {
@@ -646,33 +647,63 @@ function AdminCenterPage({
         {flash && <p className="status ok">{flash}</p>}
 
         {activeTab === "dashboard" && (
-          <div className="metric-grid">
-            <article className="metric-card">
-              <p>Total SKUs</p>
-              <strong>{metrics.total}</strong>
-              <span className="metric-pill success">Active</span>
+          <>
+            <div className="metric-grid">
+              <article className="metric-card">
+                <p>Total SKUs</p>
+                <strong>{metrics.total}</strong>
+                <span className="metric-pill success">Active</span>
+              </article>
+              <article className="metric-card">
+                <p>Units on hand</p>
+                <strong>{metrics.stockUnits}</strong>
+                <span className="metric-pill neutral">Current</span>
+              </article>
+              <article className="metric-card">
+                <p>Out of stock</p>
+                <strong>{metrics.outCount}</strong>
+                <span className="metric-pill warn">Needs restock</span>
+              </article>
+              <article className="metric-card">
+                <p>Low stock</p>
+                <strong>{metrics.lowCount}</strong>
+                <span className="metric-pill warn">Monitor</span>
+              </article>
+              <article className="metric-card">
+                <p>Avg price</p>
+                <strong>${metrics.avgPrice}</strong>
+                <span className="metric-pill neutral">Blended</span>
+              </article>
+            </div>
+
+            <article className="dash-card">
+              <div className="dash-card-head">
+                <div>
+                  <p className="dash-label">Supplier access</p>
+                  <strong>Manage supplier accounts</strong>
+                  <p className="muted small-note">
+                    <br></br>
+                  </p>
+                </div>
+              </div>
+              <div className="auth-helper-row">
+                <button
+                  className="primary-btn"
+                  type="button"
+                  onClick={() => onNavigate?.("/supplier-signup")}
+                >
+                  Create supplier account
+                </button>
+                <button
+                  className="ghost-btn"
+                  type="button"
+                  onClick={() => onNavigate?.("/supplier-login")}
+                >
+                  Supplier sign in
+                </button>
+              </div>
             </article>
-            <article className="metric-card">
-              <p>Units on hand</p>
-              <strong>{metrics.stockUnits}</strong>
-              <span className="metric-pill neutral">Current</span>
-            </article>
-            <article className="metric-card">
-              <p>Out of stock</p>
-              <strong>{metrics.outCount}</strong>
-              <span className="metric-pill warn">Needs restock</span>
-            </article>
-            <article className="metric-card">
-              <p>Low stock</p>
-              <strong>{metrics.lowCount}</strong>
-              <span className="metric-pill warn">Monitor</span>
-            </article>
-            <article className="metric-card">
-              <p>Avg price</p>
-              <strong>${metrics.avgPrice}</strong>
-              <span className="metric-pill neutral">Blended</span>
-            </article>
-          </div>
+          </>
         )}
 
         {activeTab === "products" && (

@@ -738,10 +738,25 @@ function App() {
     const isAdmin = role === "admin"
     const isSupplier = role === "supplier"
 
-    if (currentPath === "/supplier-signup")
-      return <SupplierSignUpPage onNavigate={navigate} />
-    if (currentPath === "/supplier-login")
-      return <SupplierLoginPage onNavigate={navigate} />
+    if (currentPath === "/supplier-signup" || currentPath === "/supplier-login") {
+      if (!isAdmin) {
+        return (
+          <section className="page-panel">
+            <p className="eyebrow">Admin</p>
+            <h2>Access denied</h2>
+            <p>Supplier access setup is managed by admins only.</p>
+            <button className="primary-btn" type="button" onClick={() => navigate("/login")}>
+              Login
+            </button>
+          </section>
+        )
+      }
+      return currentPath === "/supplier-signup" ? (
+        <SupplierSignUpPage onNavigate={navigate} />
+      ) : (
+        <SupplierLoginPage onNavigate={navigate} />
+      )
+    }
     if (currentPath === "/signup") return <SignUpPage onNavigate={navigate} />
     if (currentPath === "/login") return <LoginPage onNavigate={navigate} />
     if (currentPath === "/cart")
@@ -784,6 +799,7 @@ function App() {
           onFeedbackDelete={handleFeedbackDeleted}
           promotions={promotions}
           onPromotionsUpdate={handlePromotionsUpdate}
+          onNavigate={navigate}
         />
       )
     }
@@ -925,15 +941,6 @@ function App() {
         {profile?.role === "admin" && (
           <button className="top-link" type="button" onClick={() => navigate("/admin")}>
             Admin Center
-          </button>
-        )}
-        {!sessionUser && (
-          <button
-            className="top-link top-link--right"
-            type="button"
-            onClick={() => navigate("/supplier-login")}
-          >
-            Supplier login
           </button>
         )}
       </div>

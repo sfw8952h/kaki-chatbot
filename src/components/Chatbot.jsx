@@ -75,7 +75,6 @@ const STATIC_NAV_TARGETS = [
   { label: "Home", path: "/" },
   { label: "Sign up", path: "/signup" },
   { label: "Log in", path: "/login" },
-  { label: "Supplier login", path: "/supplier-login" },
   { label: "Cart", path: "/cart" },
   { label: "Admin Center", path: "/admin" },
   { label: "Supplier Center", path: "/supplier" },
@@ -485,13 +484,13 @@ function Chatbot({
       const normalized = normalizeCommandText(text)
       const shortcuts = [
         { regex: /(go to|open|show)\s+(login|sign in)/, path: "/login", reply: "Heading to login for you." },
-        { regex: /(go to|open|show)\s+(supplier login|supplier|vendor)/, path: "/supplier-login", reply: "Redirecting you to the supplier login." },
+        { regex: /(go to|open|show)\s+(supplier login|supplier|vendor)/, path: "/admin", reply: "Taking you to the admin center for supplier access." },
         { regex: /(go to|open|show)\s+(cart|bag)/, path: "/cart", reply: "Opening your cart now." },
         { regex: /(go to|open|show)\s+(purchase history|order history|past orders)/, path: "/history", reply: "Showing your purchase history." },
         { regex: /(go to|open|show)\s+(order tracking|track order)/, path: "/tracking", reply: "Taking you to order tracking." },
         { regex: /(go to|open|show)\s+(membership|tier)/, path: "/membership", reply: "Opening your membership page." },
         { regex: /(recommend|reccomend|suggest|show)\s+(recipes?|meals?)/, path: "/recipes", reply: "Here are recipe ideas for you." },
-        { regex: /(supplier login|supplier|vendor)/, path: "/supplier-login", reply: "Redirecting you to the supplier login." },
+        { regex: /(supplier login|supplier|vendor)/, path: "/admin", reply: "Taking you to the admin center for supplier access." },
       ]
       const match = shortcuts.find((item) => item.regex.test(normalized))
       if (!match) {

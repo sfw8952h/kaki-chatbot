@@ -96,8 +96,8 @@ function SupplierSignUpPage({ onNavigate }) {
   return (
     <div className="page-panel">
       <p className="eyebrow">Supplier registration</p>
-      <h2>Register as a Supplier</h2>
-      <p>Create a supplier account to propose products and manage listings in the Supplier Center.</p>
+      <h2>Create a Supplier Account</h2>
+      <p>Supplier accounts are created by admins and shared with suppliers directly.</p>
 
       <form className="signup-form" onSubmit={handleSignUp}>
         <label>
@@ -154,14 +154,14 @@ function SupplierSignUpPage({ onNavigate }) {
       {debug && <pre className="auth-debug">{debug}</pre>}
 
       <div className="auth-helper-row">
-        <span>Already a supplier?</span>
+        <span>Need to return to the dashboard?</span>
         <button
           className="ghost-btn zoom-on-hover"
           type="button"
-          onClick={() => onNavigate?.("/supplier-login")}
+          onClick={() => onNavigate?.("/admin")}
           disabled={loading}
         >
-          Login
+          Back to admin center
         </button>
       </div>
     </div>
