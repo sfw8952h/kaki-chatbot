@@ -807,13 +807,14 @@ function Chatbot({
     [groqSettings, createGroundedPrompt, safeNavigate, stripNavigationDirectives],
   )
 
-  const sendMessage = async () => {
-    if (!draft.trim()) return
+  const sendMessage = async (overrideText) => {
+    const messageText = (overrideText ?? draft).trim()
+    if (!messageText) return
     if (isSending) return
 
     setError("")
 
-    const trimmed = draft.trim()
+    const trimmed = messageText
     const userMessage = { id: Date.now(), text: trimmed, from: "user" }
     setMessages((prev) => [...prev, userMessage])
     setDraft("")
@@ -908,6 +909,10 @@ function Chatbot({
     }
   }
 
+  const handleSuggestionClick = (text) => {
+    sendMessage(text)
+  }
+
   return (
     <>
       <button className="chatbot-toggle" onClick={() => setOpen(!open)}>
@@ -916,7 +921,16 @@ function Chatbot({
 
       {open && (
         <div className="chatbot-box fade-in">
-          <h4>AI Chatbot</h4>
+          <div className="chatbot-header">
+            <h4>AI Chatbot</h4>
+            <button
+              className="chatbot-clear-btn"
+              type="button"
+              onClick={() => setMessages(initialMessages)}
+            >
+              Clear chat
+            </button>
+          </div>
 
           {/* keep language selector if your backend uses it; groq direct mode doesn't need it,
               but it doesn't hurt to keep it for future */}
@@ -977,6 +991,19 @@ function Chatbot({
               )
             })}
             {isSending && <p className="bot subtle">Assistant is thinking...</p>}
+
+            <div className="chatbot-suggestions in-chat">
+              {["Find rice", "Make soup", "Track my order", "Show cart"].map((label) => (
+                <button
+                  key={label}
+                  className="chatbot-chip"
+                  type="button"
+                  onClick={() => handleSuggestionClick(label)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {error && <p className="error-banner">{error}</p>}

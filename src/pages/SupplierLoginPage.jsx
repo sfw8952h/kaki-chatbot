@@ -63,8 +63,7 @@ function SupplierLoginPage({ onNavigate }) {
       <div className="login-grid">
         <div className="login-hero">
           <p className="eyebrow">Supplier access</p>
-          <h2>Supplier sign in (admin)</h2>
-          <p className="hero-note">Supplier accounts are managed by admins only.</p>
+          <h2>Supplier sign in</h2>
           <div className="hero-support">
             <span />
           </div>
@@ -114,10 +113,10 @@ function SupplierLoginPage({ onNavigate }) {
             <button
               className="ghost-btn zoom-on-hover"
               type="button"
-              onClick={() => onNavigate?.("/admin")}
+              onClick={() => onNavigate?.("/supplier-signup")}
               disabled={loading}
             >
-              Back to admin center
+              Become a new supplier
             </button>
           </div>
         </form>

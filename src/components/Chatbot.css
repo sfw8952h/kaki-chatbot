@@ -36,6 +36,60 @@
   animation: fadeIn 0.5s ease forwards;
 }
 
+.chatbot-hero {
+  background: var(--surface);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 20px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chatbot-hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.chatbot-avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: #e7f5ec;
+  color: #0a6c51;
+  display: grid;
+  place-items: center;
+  font-size: 1.6rem;
+}
+
+.chatbot-hero-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chatbot-hero-btn {
+  border: none;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--primary);
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.chatbot-hero h4 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--primary);
+}
+
+.chatbot-hero p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
 .language-row {
   display: flex;
   justify-content: space-between;
@@ -62,7 +116,28 @@
 
 .chatbot-box h4 {
   margin-bottom: 0;
+  color: #f8fafc;
+}
+
+.chatbot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chatbot-clear-btn {
+  border: none;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
   color: var(--primary);
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.chatbot-clear-btn:hover {
+  background: rgba(15, 23, 42, 0.14);
 }
 
 .messages {
@@ -217,6 +292,32 @@
 .messages .subtle {
   color: var(--text-muted);
   font-style: italic;
+}
+
+.chatbot-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chatbot-suggestions.in-chat {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.chatbot-chip {
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  background: var(--surface-soft);
+  color: var(--primary);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.chatbot-chip:hover {
+  background: rgba(15, 23, 42, 0.06);
 }
 
 .error-banner {

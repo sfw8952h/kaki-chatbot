@@ -739,7 +739,7 @@ function App() {
     const isAdmin = role === "admin"
     const isSupplier = role === "supplier"
 
-    if (currentPath === "/supplier-signup" || currentPath === "/supplier-login") {
+    if (currentPath === "/supplier-signup") {
       if (!isAdmin) {
         return (
           <section className="page-panel">
@@ -752,11 +752,10 @@ function App() {
           </section>
         )
       }
-      return currentPath === "/supplier-signup" ? (
-        <SupplierSignUpPage onNavigate={navigate} />
-      ) : (
-        <SupplierLoginPage onNavigate={navigate} />
-      )
+      return <SupplierSignUpPage onNavigate={navigate} />
+    }
+    if (currentPath === "/supplier-login") {
+      return <SupplierLoginPage onNavigate={navigate} />
     }
     if (currentPath === "/signup") return <SignUpPage onNavigate={navigate} />
     if (currentPath === "/login") return <LoginPage onNavigate={navigate} />
@@ -942,6 +941,15 @@ function App() {
         {profile?.role === "admin" && (
           <button className="top-link" type="button" onClick={() => navigate("/admin")}>
             Admin Center
+          </button>
+        )}
+        {!sessionUser && (
+          <button
+            className="top-link top-link--right"
+            type="button"
+            onClick={() => navigate("/supplier-login")}
+          >
+            Supplier login
           </button>
         )}
       </div>
