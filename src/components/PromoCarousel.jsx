@@ -33,7 +33,6 @@ function PromoCarousel({ promotions = [] }) {
         <div
           className="promo-carousel-track"
           style={{
-            width: `${slideCount * 100}%`,
             transform: `translateX(-${activeSlide * 100}%)`,
           }}
         >

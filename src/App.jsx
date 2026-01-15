@@ -39,7 +39,7 @@ const createPromotionFromProduct = (product, index) => ({
   id: product.slug || `promo-${index}`,
   badge:
     index === 0 ? "Fresh savings" : index === 1 ? "Bakery favorite" : "Pantry pick",
-  headline: `${product.name} â€” member price`,
+  headline: `${product.name} - member price`,
   detail: `${product.desc} Now only $${product.price} while fresh stock lasts.`,
   slug: product.slug,
   image: product.image,
@@ -99,12 +99,12 @@ function App() {
   useEffect(() => {
     if (!supabase) return
 
-      const fetchProfile = async (userId) => {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("full_name, role, membership_tier, membership_points")
-          .eq("id", userId)
-          .maybeSingle()
+    const fetchProfile = async (userId) => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("full_name, role, membership_tier, membership_points")
+        .eq("id", userId)
+        .maybeSingle()
       if (error) {
         console.warn("Unable to load profile", error)
         setProfile(null)
@@ -274,9 +274,9 @@ function App() {
   const toSlug = (name) =>
     name
       ? name
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/(^-|-$)/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "")
       : `product-${Date.now()}`
 
   const computeStockBadge = (onlineStock, storeAvailability = []) => {
@@ -300,10 +300,10 @@ function App() {
       Array.isArray(product.storeAvailability) && product.storeAvailability.length > 0
         ? product.storeAvailability
         : storeLocations.map((store, idx) => ({
-            storeId: store.id,
-            storeName: store.name,
-            stock: Math.max(0, (onlineStock || 12) - idx * 2 - ((product.slug || "").length % 3)),
-          }))
+          storeId: store.id,
+          storeName: store.name,
+          stock: Math.max(0, (onlineStock || 12) - idx * 2 - ((product.slug || "").length % 3)),
+        }))
 
     return { onlineStock, storeAvailability }
   }
@@ -615,9 +615,9 @@ function App() {
       store.id ||
       (store.name
         ? store.name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/(^-|-$)/g, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "")
         : `store-${Date.now()}`)
     const payload = {
       ...store,

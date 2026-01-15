@@ -89,6 +89,11 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch, onAddToCa
                 }}
               >
                 <div className="grocery-media" style={{ background: product.accent }}>
+                  {/* Premium Stock Indicator Overlay */}
+                  <div className={`stock-indicator ${availability.tone === 'out' ? 'out-of-stock' : ''}`}>
+                    <span className={`stock-dot stock-dot--${availability.tone}`} aria-hidden="true" />
+                    <span>{availability.label}</span>
+                  </div>
                   <img src={product.image} alt={product.name} className="grocery-media-image" />
                 </div>
                 <div className="grocery-text">
@@ -99,7 +104,7 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch, onAddToCa
                   <div className="grocery-meta">
                     <div className="price-block">
                       <span className="grocery-price">${product.price}</span>
-                      <span className="stock-badge">{product.badge}</span>
+                      {product.badge && <span className="stock-badge">{product.badge}</span>}
                     </div>
                   </div>
                   <div className="grocery-cta-row">
@@ -107,27 +112,28 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch, onAddToCa
                       <button
                         className="qty-btn"
                         aria-label="Decrease quantity"
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        handleQuantityChange(product.slug, -1)
-                      }}
-                      disabled={qty <= 1}
-                    >
-                      -
-                    </button>
-                    <span className="qty-count">{qty}</span>
-                    <button
-                      className="qty-btn"
-                      aria-label="Increase quantity"
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        handleQuantityChange(product.slug, 1)
-                      }}
-                    >
-                      +
-                    </button>
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          handleQuantityChange(product.slug, -1)
+                        }}
+                        disabled={qty <= 1}
+                      >
+                        -
+                      </button>
+                      <span className="qty-count">{qty}</span>
+                      <button
+                        className="qty-btn"
+                        aria-label="Increase quantity"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          handleQuantityChange(product.slug, 1)
+                        }}
+                      >
+                        +
+                      </button>
+                    </div>
                     <button
                       className="add-cart-btn"
                       type="button"
@@ -138,14 +144,6 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch, onAddToCa
                     >
                       Add to cart
                     </button>
-                  </div>
-                  </div>
-                  <div className="availability-row">
-                    <span className={`stock-dot stock-dot--${availability.tone}`} aria-hidden="true" />
-                    <div className="availability-copy">
-                      <strong>{availability.label}</strong>
-                      <small>{availability.locationLabel}</small>
-                    </div>
                   </div>
                 </div>
               </article>
