@@ -962,6 +962,7 @@ function App() {
         searchTerm={searchTerm}
         onSearch={handleSearch}
         cartCount={cartCount}
+        catalog={catalog}
       />
       <main className="page-body">{mainContent}</main>
       <footer className="site-footer">

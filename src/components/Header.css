@@ -32,8 +32,14 @@
   font-family: inherit;
 }
 
+.search-container {
+  flex: 3;
+  margin: 0 40px;
+  position: relative;
+  z-index: 1001;
+}
+
 .search-box {
-  flex: 1;
   display: flex;
   align-items: center;
   background: var(--surface-soft);
@@ -219,14 +225,134 @@
   border: 1px solid rgba(15, 23, 42, 0.15);
 }
 
+/* Search Overlay Window Styles */
+.search-overlay-window {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  animation: fadeIn 0.3s ease-out;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.search-overlay-content {
+  display: block;
+  min-height: auto;
+}
+
+.search-overlay-full {
+  padding: 24px;
+  background: #ffffff;
+}
+
+.overlay-section {
+  margin-bottom: 24px;
+}
+
+.search-overlay-window h5 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 16px 0;
+  text-transform: capitalize;
+}
+
+.suggestion-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.suggestion-list li {
+  padding: 8px 0;
+  font-size: 0.9rem;
+  color: #64748b;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.suggestion-list li:hover {
+  color: #10b981;
+}
+
+.overlay-product-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.overlay-product-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.overlay-product-item:hover {
+  background: #f1f5f9;
+}
+
+.overlay-product-item img {
+  width: 50px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.item-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.item-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.item-price {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #10b981;
+}
+
+.search-overlay-footer {
+  padding: 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  text-align: center;
+  background: #ffffff;
+}
+
+.view-all-results {
+  background: transparent;
+  border: none;
+  color: #b45309;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.view-all-results:hover {
+  color: #92400e;
+}
+
+.muted {
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
 @media (max-width: 768px) {
-  .search-box {
-    order: 3;
-    width: 100%;
+  .search-overlay-full {
+    padding: 16px;
   }
-
-  .header-right {
-    gap: 12px;
-  }
-
 }
