@@ -1,0 +1,239 @@
+/* header layout styling with search and nav */
+.header {
+  width: min(1200px, 92%);
+  margin: 16px auto 0;
+  padding: 18px 26px 20px;
+  border-radius: 26px;
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  position: relative;
+  z-index: 2;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.logo {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0.08em;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}
+
+.search-box {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: var(--surface-soft);
+  border-radius: 999px;
+  padding: 12px 18px;
+  gap: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.search-box input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 0.95rem;
+  color: var(--primary);
+  font-weight: 500;
+  outline: none;
+}
+
+.search-submit {
+  border: none;
+  background: transparent;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background 0.2s ease;
+}
+
+.search-icon {
+  color: #94a3b8;
+  font-size: 1rem;
+}
+
+.search-submit:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  position: relative;
+}
+
+.split-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.header-auth-pill {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.mode-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.mode-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: var(--surface-soft);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.header-btn {
+  border-radius: 16px;
+  padding: 10px 16px;
+  border: none;
+  background: linear-gradient(145deg, #0da274, #0a8a62);
+  color: #f8fafc;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.outline-btn {
+  background: transparent;
+  border: 1px solid #0da274;
+  color: #0a6c51;
+}
+
+.header-cart-btn {
+  padding: 10px 12px;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.cart-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #0a6c51;
+  color: #f8fafc;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  padding: 0 6px;
+}
+
+.location {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: var(--surface-soft);
+}
+
+.location-link {
+  border: none;
+  background: transparent;
+  color: #0a6c51;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 999px;
+}
+
+.location-link:hover {
+  background: rgba(13, 162, 116, 0.1);
+}
+
+.category-nav {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  font-size: 0.95rem;
+}
+
+.category-nav a {
+  text-decoration: none;
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-radius: 999px;
+  transition: all 0.25s ease;
+  border: 1px solid transparent;
+}
+
+.category-nav .category-link {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  font-size: 0.95rem;
+}
+
+.category-nav a:hover {
+  color: var(--primary);
+  border-color: rgba(15, 23, 42, 0.15);
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.category-nav .category-link:hover {
+  color: var(--primary);
+  background: rgba(15, 23, 42, 0.05);
+  border: 1px solid rgba(15, 23, 42, 0.15);
+}
+
+@media (max-width: 768px) {
+  .search-box {
+    order: 3;
+    width: 100%;
+  }
+
+  .header-right {
+    gap: 12px;
+  }
+
+}
+
+.category-link.is-active {
+  border-color: rgba(41, 132, 92, 0.55);
+  box-shadow: 0 10px 28px rgba(41, 132, 92, 0.12);
+  background: rgba(231, 245, 236, 0.75);
+  font-weight: 700;
+}

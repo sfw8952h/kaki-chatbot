@@ -1,0 +1,124 @@
+.promo-carousel {
+  width: min(1200px, 96%);
+  margin: 0 auto;
+  background: linear-gradient(135deg, #047857, #0f766e);
+  padding: 0;
+  border-radius: 26px;
+  box-shadow: 0 15px 40px rgba(4, 120, 87, 0.45);
+  box-sizing: border-box;
+}
+
+.promo-carousel-track-wrapper {
+  overflow: hidden;
+}
+
+.promo-carousel-track {
+  display: flex;
+  transition: transform 0.6s ease;
+}
+
+.promo-slide {
+  min-width: 100%;
+  padding: 28px 48px;
+  box-sizing: border-box;
+  color: #f0fdf4;
+  display: flex;
+  align-items: center;
+}
+
+.promo-slide-copy {
+  max-width: 680px;
+}
+
+.promo-slide-badge {
+  font-size: 0.75rem;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  margin: 0 0 10px;
+  color: rgba(240, 253, 244, 0.8);
+}
+
+.promo-slide h2 {
+  margin: 0;
+  font-size: clamp(2.2rem, 3vw, 3rem);
+  line-height: 1.1;
+}
+
+.promo-slide p {
+  margin: 10px 0 18px;
+  color: rgba(240, 253, 244, 0.85);
+  font-size: 1.05rem;
+  line-height: 1.4;
+}
+
+.promo-slide-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.promo-slide-btn {
+  background: #f0fdf4;
+  color: #047857;
+  border-radius: 999px;
+  padding: 12px 22px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.promo-slide-note {
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  color: rgba(240, 253, 244, 0.65);
+}
+
+.promo-carousel-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 0 20px;
+}
+
+.promo-nav {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(240, 253, 244, 0.5);
+  background: transparent;
+  color: #f0fdf4;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.promo-nav:hover,
+.promo-nav:focus-visible {
+  border-color: #f0fdf4;
+}
+
+.promo-slider-counter {
+  font-size: 0.85rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(240, 253, 244, 0.8);
+}
+
+@media (max-width: 720px) {
+  .promo-slide {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .promo-carousel {
+    padding: 0;
+  }
+
+  .promo-slide-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
