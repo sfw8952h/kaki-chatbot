@@ -22,7 +22,7 @@ function SupplierLoginPage({ onNavigate }) {
         setEmail(saved)
         setRememberMe(true)
       }
-    } catch {}
+    } catch { }
   }, [])
 
   const persistRememberEmail = (nextRemember, nextEmail) => {
@@ -30,7 +30,7 @@ function SupplierLoginPage({ onNavigate }) {
       const clean = String(nextEmail || "").trim().toLowerCase()
       if (nextRemember && clean) localStorage.setItem(SUPPLIER_REMEMBER_EMAIL_KEY, clean)
       else localStorage.removeItem(SUPPLIER_REMEMBER_EMAIL_KEY)
-    } catch {}
+    } catch { }
   }
 
   const handleLogin = async (event) => {
@@ -61,11 +61,19 @@ function SupplierLoginPage({ onNavigate }) {
         .from("profiles")
         .select("role")
         .eq("id", userId)
-        .single()
+        .maybeSingle()
 
-      if (profileErr || profile?.role !== "supplier") {
+      if (!profile) {
+        // If no profile, they aren't a supplier anyway (must be created from signup)
+        // but let's not boot them without reason, let them go back to member logic
         await supabase.auth.signOut()
-        throw new Error("This account is not a supplier. Please use Member Login instead.")
+        throw new Error("No profile found for this account. Please sign up first.")
+      }
+
+      if (profile.role !== "supplier" && profile.role !== "admin") {
+        // Not a supplier, but they are logged in. Let's warn them.
+        onNavigate?.("/login") // redirect to member login
+        return
       }
 
       // ✅ save email only if rememberMe

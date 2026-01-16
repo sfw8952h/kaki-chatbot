@@ -25,7 +25,7 @@ function LoginPage({ onNavigate }) {
         setEmail(saved)
         setRememberMe(true)
       }
-    } catch {}
+    } catch { }
   }, [])
 
   const persistRememberEmail = (nextRemember, nextEmail) => {
@@ -33,7 +33,7 @@ function LoginPage({ onNavigate }) {
       const clean = String(nextEmail || "").trim().toLowerCase()
       if (nextRemember && clean) localStorage.setItem(MEMBER_REMEMBER_EMAIL_KEY, clean)
       else localStorage.removeItem(MEMBER_REMEMBER_EMAIL_KEY)
-    } catch {}
+    } catch { }
   }
 
   // ✅ Social login (OAuth)
@@ -90,12 +90,19 @@ function LoginPage({ onNavigate }) {
         .from("profiles")
         .select("role")
         .eq("id", userId)
-        .single()
+        .maybeSingle()
 
-      // If no profile row OR role not customer => reject + sign out
-      if (profileError || !profile || profile.role !== "customer") {
-        await supabase.auth.signOut()
-        throw new Error("This account is not a customer. Please use Supplier/Admin login.")
+      // If no profile row, create a default customer profile instead of booting
+      if (!profile) {
+        await supabase.from("profiles").upsert({
+          id: userId,
+          full_name: data.user.user_metadata?.full_name || cleanEmail.split("@")[0],
+          role: "customer",
+        })
+      } else if (profile.role !== "customer" && profile.role !== "admin") {
+        // If they are a supplier but on the member page, we let them in but maybe they should be warned
+        // For now, let's not boot them to avoid the "logs me back out" loop
+        console.warn("Supplier logging in via member page")
       }
 
       // ✅ save email only if rememberMe

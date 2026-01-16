@@ -132,18 +132,18 @@ const summarizeProduct = (product) => {
     product.storeAvailability || product.store_availability || product.availability || []
   const storeSummary = Array.isArray(stores)
     ? stores
-        .slice(0, MAX_CONTEXT_LOCATIONS)
-        .map((entry) => {
-          const storeName = entry.storeName || entry.store_name || entry.location || "Store"
-          const storeStock =
-            parseNumeric(entry.stock ?? entry.qty ?? entry.quantity) ??
-            entry.stock ??
-            entry.qty ??
-            entry.quantity ??
-            "?"
-          return `${storeName}: ${storeStock}`
-        })
-        .join(", ")
+      .slice(0, MAX_CONTEXT_LOCATIONS)
+      .map((entry) => {
+        const storeName = entry.storeName || entry.store_name || entry.location || "Store"
+        const storeStock =
+          parseNumeric(entry.stock ?? entry.qty ?? entry.quantity) ??
+          entry.stock ??
+          entry.qty ??
+          entry.quantity ??
+          "?"
+        return `${storeName}: ${storeStock}`
+      })
+      .join(", ")
     : ""
   const pieces = [
     `${name} — ${description}`,
@@ -184,15 +184,15 @@ const summarizeLocation = (location) => {
     location.specialHours || location.special_hours || location.specialHoursNotes || []
   const specialSummary = Array.isArray(special)
     ? special
-        .slice(0, 3)
-        .map((entry) => {
-          if (!entry) return ""
-          const label = entry.label || "Special hours"
-          if (entry.closed) return `${entry.date}: Closed (${label})`
-          return `${entry.date}: ${entry.open}-${entry.close} (${label})`
-        })
-        .filter(Boolean)
-        .join("; ")
+      .slice(0, 3)
+      .map((entry) => {
+        if (!entry) return ""
+        const label = entry.label || "Special hours"
+        if (entry.closed) return `${entry.date}: Closed (${label})`
+        return `${entry.date}: ${entry.open}-${entry.close} (${label})`
+      })
+      .filter(Boolean)
+      .join("; ")
     : ""
   const pieces = [
     `${name} — ${address}`,
@@ -240,9 +240,9 @@ function Chatbot({
   storeLocations = [],
   userProfile = null,
   orders = [],
-  onNavigate = () => {},
-  onAddToCart = () => {},
-  onRecipeSuggestion = () => {},
+  onNavigate = () => { },
+  onAddToCart = () => { },
+  onRecipeSuggestion = () => { },
 }) {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState(initialMessages)
@@ -252,6 +252,21 @@ function Chatbot({
   const [error, setError] = useState("")
   const [pendingCartChoice, setPendingCartChoice] = useState(null)
   const messagesEndRef = useRef(null)
+
+  const checkIfPurchasedBefore = useCallback(
+    (product) => {
+      if (!product || !Array.isArray(orders)) return false
+      return orders.some((order) =>
+        (order.order_items || []).some(
+          (item) =>
+            item.slug === product.slug ||
+            item.product_id === product.id ||
+            item.id === product.id,
+        ),
+      )
+    },
+    [orders],
+  )
 
   useEffect(() => {
     const greeting = GREETING_BY_LANG[language] || GREETING_BY_LANG.en
@@ -450,16 +465,16 @@ function Chatbot({
     if (!payload) return null
     const ingredients = Array.isArray(payload.ingredients)
       ? payload.ingredients
-          .map((item) => {
-            if (!item) return ""
-            if (typeof item === "string") return item
-            if (typeof item === "object") {
-              return item.name || item.ingredient || item.item || ""
-            }
-            return String(item)
-          })
-          .filter(Boolean)
-          .slice(0, 10)
+        .map((item) => {
+          if (!item) return ""
+          if (typeof item === "string") return item
+          if (typeof item === "object") {
+            return item.name || item.ingredient || item.item || ""
+          }
+          return String(item)
+        })
+        .filter(Boolean)
+        .slice(0, 10)
       : []
     if (!ingredients.length) return null
     return {
@@ -581,22 +596,28 @@ function Chatbot({
       if (!normalizedHint) return []
       if (!Array.isArray(catalog)) return []
       const tokens = normalizedHint.split(" ").filter((token) => token.length >= 3)
+
       return catalog
-        .filter((product) => {
-          const haystack = [
-            product.name,
-            product.slug,
-            product.tag,
-            product.category,
-            product.brand,
-            product.desc,
-          ]
-            .filter(Boolean)
-            .map((value) => normalizeCommandText(value))
-            .join(" ")
-          if (haystack.includes(normalizedHint)) return true
-          return tokens.some((token) => haystack.includes(token))
+        .map((product) => {
+          const name = normalizeCommandText(product.name || "")
+          const desc = normalizeCommandText(product.desc || "")
+          const category = normalizeCommandText(product.category || "")
+          const brand = normalizeCommandText(product.brand || "")
+          const slug = normalizeCommandText(product.slug || "")
+
+          let score = 0
+          if (name === normalizedHint || slug === normalizedHint) score = 1000
+          else if (name.startsWith(normalizedHint)) score = 500
+          else if (name.includes(normalizedHint)) score = 100
+          else if (desc.includes(normalizedHint)) score = 50
+          else if (category.includes(normalizedHint) || brand.includes(normalizedHint)) score = 20
+          else if (tokens.some((token) => name.includes(token))) score = 10
+
+          return { product, score }
         })
+        .filter((entry) => entry.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map((entry) => entry.product)
         .slice(0, 5)
     },
     [catalog, normalizeCommandText],
@@ -615,16 +636,28 @@ function Chatbot({
       }
       if (matches.length === 1) {
         const product = matches[0]
+        const previouslyPurchased = checkIfPurchasedBefore(product)
         onAddToCart?.(product, quantity)
-        return `Added ${quantity} x ${product.name || product.slug} to your cart.`
+        let reply = `Added ${quantity} x ${product.name || product.slug} to your cart.`
+        if (previouslyPurchased) {
+          reply += " You've ordered this version before! Do you want to repurchase? (Already added one to your cart, but feel free to add more!)"
+        }
+        return reply
       }
+
       setPendingCartChoice({ options: matches, quantity })
-      const list = matches
-        .map((item, index) => `${index + 1}) ${item.name || item.slug}`)
-        .join("\n")
-      return `I found multiple items. Which one do you want?\n${list}`
+      return {
+        type: "product-list",
+        title: `I found ${matches.length} items for "${productHint}"`,
+        description: "Which one would you like to add to your cart?",
+        quantity,
+        items: matches.map((p) => ({
+          product: p,
+          purchasedBefore: checkIfPurchasedBefore(p),
+        })),
+      }
     },
-    [findProductMatches, onAddToCart],
+    [findProductMatches, onAddToCart, checkIfPurchasedBefore],
   )
 
   const handlePendingCartChoice = useCallback(
@@ -661,24 +694,44 @@ function Chatbot({
       }
       onAddToCart?.(product, pendingCartChoice.quantity || 1)
       setPendingCartChoice(null)
-      return `Added ${pendingCartChoice.quantity || 1} x ${
-        product.name || product.slug
-      } to your cart.`
+      return `Added ${pendingCartChoice.quantity || 1} x ${product.name || product.slug
+        } to your cart.`
     },
     [normalizeCommandText, onAddToCart, pendingCartChoice],
   )
 
   const handleShowProductIntent = useCallback(
     (text) => {
-      const match = text.match(/(?:show|view|open|find|tell me about)\s+(?:me\s+)?(.+?)(?:$|\?)/i)
+      const match = text.match(
+        /(?:show|view|open|find|tell me about|search for|want|need|looking for|get me)\s+(?:me\s+)?(.+?)(?:$|\?)/i,
+      )
       if (!match) return null
       const productHint = match[1].trim()
-      const product = findProductByName(productHint)
-      if (!product || !product.slug) return null
-      safeNavigate(`/product/${product.slug}`)
-      return `Opening ${product.name || product.slug} for you.`
+      const matches = findProductMatches(productHint)
+      if (matches.length === 0) return null
+
+      if (matches.length === 1) {
+        const product = matches[0]
+        const previouslyPurchased = checkIfPurchasedBefore(product)
+        safeNavigate(`/product/${product.slug}`)
+        let reply = `Opening ${product.name || product.slug} for you.`
+        if (previouslyPurchased) {
+          reply += " You've ordered this version before! Do you want to repurchase?"
+        }
+        return reply
+      }
+
+      return {
+        type: "product-list",
+        title: `Matches for "${productHint}"`,
+        description: "Here are the items I found. You can add them to your cart or view details.",
+        items: matches.map((p) => ({
+          product: p,
+          purchasedBefore: checkIfPurchasedBefore(p),
+        })),
+      }
     },
-    [findProductByName, safeNavigate],
+    [findProductMatches, safeNavigate, checkIfPurchasedBefore],
   )
 
   const handleSpecialIntent = useCallback(
@@ -721,6 +774,38 @@ function Chatbot({
 
       const showReply = handleShowProductIntent(text)
       if (showReply) return showReply
+
+      // Catch-all for short product queries (up to 4 words)
+      // This helps catch "milo", "i want milo", "get some milo", etc.
+      const wordCount = normalized.split(" ").length
+      if (wordCount <= 4) {
+        // Strip common fillers
+        const productHint = normalized.replace(/^(i|want|need|get|some|the|to|buy|looking|for|show|me)\s+/g, "").trim()
+        const matches = findProductMatches(productHint)
+        if (matches.length > 0) {
+          if (matches.length === 1) {
+            const product = matches[0]
+            const previouslyPurchased = checkIfPurchasedBefore(product)
+            let reply = `I found ${product.name}. Would you like to add it to your cart or view details?`
+            if (previouslyPurchased) reply += " (You've ordered this before!)"
+            return {
+              type: "product-list",
+              title: `Found ${product.name}`,
+              description: reply,
+              items: [{ product, purchasedBefore: previouslyPurchased }],
+            }
+          }
+          return {
+            type: "product-list",
+            title: `Found ${matches.length} matches for "${productHint}"`,
+            description: "Select an item to add to your cart or view details.",
+            items: matches.map((p) => ({
+              product: p,
+              purchasedBefore: checkIfPurchasedBefore(p),
+            })),
+          }
+        }
+      }
 
       return null
     },
@@ -843,11 +928,12 @@ function Chatbot({
       }
 
       const intentReply = handleSpecialIntent(trimmed)
+      if (intentReply && typeof intentReply === "object") {
+        setMessages((prev) => [...prev, { id: Date.now() + 1, from: "bot", ...intentReply }])
+        return
+      }
       if (intentReply) {
-        setMessages((prev) => [
-          ...prev,
-          { id: Date.now() + 1, text: intentReply, from: "bot" },
-        ])
+        setMessages((prev) => [...prev, { id: Date.now() + 1, text: intentReply, from: "bot" }])
         return
       }
 
@@ -985,6 +1071,52 @@ function Chatbot({
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )
+              }
+              if (message.type === "product-list") {
+                return (
+                  <div key={message.id} className={`chatbot-card ${message.from}`}>
+                    <div className="chatbot-card-head">
+                      <div>
+                        <strong>{message.title}</strong>
+                        <p>{message.description}</p>
+                      </div>
+                    </div>
+                    <div className="chatbot-card-grid">
+                      {message.items.map((entry) => {
+                        const { product, purchasedBefore } = entry
+                        return (
+                          <div key={product.slug} className="chatbot-card-item">
+                            <img src={product.image} alt={product.name} />
+                            <div>
+                              <span>{product.name}</span>
+                              {purchasedBefore && (
+                                <span className="chatbot-repurchase-badge">
+                                  Ordered before! Repurchase?
+                                </span>
+                              )}
+                              <div className="chatbot-card-actions">
+                                <button
+                                  type="button"
+                                  className="chatbot-card-btn"
+                                  onClick={() => onAddToCart?.(product, message.quantity || 1)}
+                                >
+                                  Add to cart
+                                </button>
+                                <button
+                                  type="button"
+                                  className="chatbot-card-btn secondary"
+                                  onClick={() => safeNavigate(`/product/${product.slug}`)}
+                                >
+                                  View
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )
