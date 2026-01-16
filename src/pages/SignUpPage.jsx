@@ -1,125 +1,192 @@
 // component: SignUpPage
-import { useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import "./Pages.css"
 import { getSupabaseClient } from "../lib/supabaseClient"
+import ReCAPTCHA from "react-google-recaptcha"
+import { FaGoogle } from "react-icons/fa"
 
 function SignUpPage({ onNavigate }) {
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+
   const [status, setStatus] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-  const [debug, setDebug] = useState("")
 
-  // handles Supabase sign-up flow
-  const handleSignUp = async (event) => {
-    event.preventDefault()
+  // ✅ captcha
+  const recaptchaRef = useRef(null)
+  const [captchaToken, setCaptchaToken] = useState("")
+  const SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY
+
+  // ---------- helpers ----------
+  const cleanEmail = useMemo(() => email.trim().toLowerCase(), [email])
+  const cleanName = useMemo(() => fullName.trim(), [fullName])
+
+  // Email format (simple + solid)
+  const isEmailValid = useMemo(() => {
+    if (!cleanEmail) return false
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+    return emailPattern.test(cleanEmail)
+  }, [cleanEmail])
+
+  // Phone: accept +65 or 65 or local 8-digit, and ignore spaces/dashes
+  const normalizePhone = (raw) => raw.replace(/[\s-]/g, "")
+  const normalizedPhone = useMemo(() => normalizePhone(phone.trim()), [phone])
+
+  const isPhoneValid = useMemo(() => {
+    if (!normalizedPhone) return false
+    // allow: +6581234567 or 6581234567 or 81234567
+    const local8 = /^[89]\d{7}$/
+    const sgWith65 = /^(?:\+65|65)([89]\d{7})$/
+    return local8.test(normalizedPhone) || sgWith65.test(normalizedPhone)
+  }, [normalizedPhone])
+
+  const formattedPhoneForProfile = useMemo(() => {
+    // store as +65XXXXXXXX
+    const local8 = normalizedPhone.match(/^([89]\d{7})$/)
+    if (local8) return `+65${local8[1]}`
+    const sg = normalizedPhone.match(/^(?:\+65|65)([89]\d{7})$/)
+    if (sg) return `+65${sg[1]}`
+    return phone.trim()
+  }, [normalizedPhone, phone])
+
+  // password strength
+  const passwordStrength = useMemo(() => {
+    if (!password) return ""
+    const rules = [
+      password.length >= 8,
+      /[A-Z]/.test(password),
+      /[a-z]/.test(password),
+      /[0-9]/.test(password),
+      /[^A-Za-z0-9]/.test(password),
+    ]
+    const score = rules.filter(Boolean).length
+    if (score >= 5) return "strong"
+    if (score >= 3) return "medium"
+    return "weak"
+  }, [password])
+
+  const passwordsMatch = useMemo(() => {
+    if (!password && !confirmPassword) return true
+    return password === confirmPassword
+  }, [password, confirmPassword])
+
+  // Inline field errors (shown only after user starts typing)
+  const emailError =
+    email.length === 0 ? "" : !isEmailValid ? "Please enter a valid email address." : ""
+
+  const phoneError =
+    phone.length === 0 ? "" : !isPhoneValid ? "Enter a valid SG number (e.g. +65 8123 4567)." : ""
+
+  const passwordError =
+    password.length === 0 ? "" : passwordStrength !== "strong" ? "Use a stronger password (8+ chars, A-Z, a-z, 0-9, symbol)." : ""
+
+  const confirmError =
+    confirmPassword.length === 0 ? "" : !passwordsMatch ? "Passwords do not match." : ""
+
+  const canSubmit =
+    !!cleanName &&
+    isEmailValid &&
+    isPhoneValid &&
+    passwordStrength === "strong" &&
+    passwordsMatch &&
+    !!captchaToken &&
+    !loading
+
+  // ✅ verify captcha on server (recommended)
+  const verifyCaptcha = async (token) => {
+    const res = await fetch("/api/verify-recaptcha", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    })
+    const data = await res.json()
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || "Captcha verification failed. Please try again.")
+    }
+  }
+
+  // Email signup
+  const handleSignUp = async (e) => {
+    e.preventDefault()
     setStatus("")
     setError("")
+
+    if (!cleanName) return setError("Please enter your full name.")
+    if (!isEmailValid) return setError("Please enter a valid email address.")
+    if (!isPhoneValid) return setError("Please enter a valid Singapore mobile number.")
+    if (passwordStrength !== "strong") return setError("Please choose a stronger password.")
+    if (!passwordsMatch) return setError("Passwords do not match.")
+    if (!captchaToken) return setError("Please complete the captcha.")
+    if (!SITE_KEY) return setError("Missing reCAPTCHA site key. Add VITE_RECAPTCHA_SITE_KEY in .env")
+
     setLoading(true)
-    setDebug("")
-
-    const cleanEmail = email.trim().toLowerCase()
-    const cleanName = fullName.trim()
-    const cleanPhone = phone.trim()
-
-    if (!cleanName || !cleanEmail || !password) {
-      setError("Please fill in your name, email, and password.")
-      setLoading(false)
-      return
-    }
-
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailPattern.test(cleanEmail)) {
-      setError("Please enter a valid email address.")
-      setLoading(false)
-      return
-    }
-
     try {
-      const supabase = getSupabaseClient()
+      await verifyCaptcha(captchaToken)
 
-      // 1) SIGN UP (auth only)
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      const supabase = getSupabaseClient()
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email: cleanEmail,
         password,
         options: {
-          data: { full_name: cleanName, phone: cleanPhone }, // metadata only
-          emailRedirectTo: window?.location?.origin
-            ? `${window.location.origin}/login`
-            : undefined,
+          data: {
+            full_name: cleanName,
+            phone: formattedPhoneForProfile,
+            role: "customer",
+          },
+          emailRedirectTo: `${window.location.origin}/login`,
         },
       })
 
-      if (signUpError) {
-        setDebug(JSON.stringify({ stage: "auth.signUp", error: signUpError }, null, 2))
-        throw signUpError
+      if (signUpError) throw signUpError
+
+      const userId = data?.user?.id
+      if (userId) {
+        await supabase.from("profiles").upsert({
+          id: userId,
+          full_name: cleanName,
+          phone: formattedPhoneForProfile,
+          role: "customer",
+        })
       }
-
-      const user = signUpData?.user
-      if (!user) {
-        throw new Error("Signup succeeded but user is missing from response.")
-      }
-
-      // 2) INSERT PROFILE ROW (this populates the profiles table)
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: user.id,            // must match profiles.id (PK, FK -> auth.users.id)
-        full_name: cleanName,
-        phone: cleanPhone,
-        role: "customer",       // default role; you can change manually to 'admin' or 'supplier'
-      })
-
-      if (profileError) {
-        setDebug((prev) =>
-          prev ||
-          JSON.stringify(
-            { stage: "profiles.insert", error: profileError },
-            null,
-            2
-          )
-        )
-        // don't throw here if you still want auth account to be created
-        console.error("Profile insert error:", profileError)
-      }
-
-      setDebug(
-        JSON.stringify(
-          {
-            stage: "completed",
-            user: {
-              id: user.id,
-              email: user.email,
-              phone: user.phone,
-              metadata: user.user_metadata,
-            },
-          },
-          null,
-          2
-        )
-      )
 
       setStatus("Account created! Check your email to confirm.")
+      setCaptchaToken("")
+      recaptchaRef.current?.reset?.()
     } catch (err) {
-      console.error("Signup error:", err)
-
-      if (!debug) {
-        setDebug(JSON.stringify({ stage: "caught error", message: err.message }, null, 2))
-      }
-
-      if (err.message?.includes("Supabase client is not configured")) {
-        setError("Supabase is not configured. Check your .env values.")
-      } else {
-        setError(err.message || "Unable to complete signup right now.")
-      }
+      setError(err?.message || "Unable to create account.")
+      setCaptchaToken("")
+      recaptchaRef.current?.reset?.()
     } finally {
       setLoading(false)
     }
   }
 
+  // Google OAuth
+  const handleGoogle = async () => {
+    setStatus("")
+    setError("")
+    setLoading(true)
+    try {
+      const supabase = getSupabaseClient()
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.origin },
+      })
+      if (error) throw error
+    } catch (err) {
+      setError(err?.message || "Google login failed.")
+      setLoading(false)
+    }
+  }
+
   return (
-    <div className="page-panel">
+    <section className="page-panel">
       <p className="eyebrow">Create account</p>
       <h2>Join Kaki Membership</h2>
       <p>Get instant access to deals, chat-based shopping, and loyalty points.</p>
@@ -131,7 +198,8 @@ function SignUpPage({ onNavigate }) {
             type="text"
             placeholder="Your name"
             value={fullName}
-            onChange={(event) => setFullName(event.target.value)}
+            onChange={(e) => setFullName(e.target.value)}
+            disabled={loading}
           />
         </label>
 
@@ -141,51 +209,109 @@ function SignUpPage({ onNavigate }) {
             type="email"
             placeholder="name@example.com"
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={loading}
           />
+          {emailError && <div className="field-error">{emailError}</div>}
         </label>
 
         <label>
           Mobile number
           <input
             type="tel"
-            placeholder="+65 1234 5678"
+            placeholder="+65 8123 4567"
             value={phone}
-            onChange={(event) => setPhone(event.target.value)}
+            onChange={(e) => setPhone(e.target.value)}
+            disabled={loading}
           />
+          {phoneError && <div className="field-error">{phoneError}</div>}
         </label>
 
         <label>
-          Set a password
-          <input
-            type="password"
-            placeholder="Choose a secure password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
+          Password
+          <div className="password-row">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Choose a secure password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={loading}
+            />
+            <button
+              type="button"
+              className="ghost-btn zoom-on-hover pw-toggle"
+              onClick={() => setShowPassword((v) => !v)}
+              disabled={loading}
+            >
+              {showPassword ? "Hide" : "Show"}
+            </button>
+          </div>
+
+          {passwordStrength && (
+            <div className={`pw-strength-label ${passwordStrength}`}>
+              {passwordStrength.charAt(0).toUpperCase() + passwordStrength.slice(1)}
+            </div>
+          )}
+          {passwordError && <div className="field-error">{passwordError}</div>}
         </label>
+
+        <label>
+          Confirm password
+          <div className="password-row">
+            <input
+              type={showConfirm ? "text" : "password"}
+              placeholder="Confirm your password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              disabled={loading}
+            />
+            <button
+              type="button"
+              className="ghost-btn zoom-on-hover pw-toggle"
+              onClick={() => setShowConfirm((v) => !v)}
+              disabled={loading}
+            >
+              {showConfirm ? "Hide" : "Show"}
+            </button>
+          </div>
+          {confirmError && <div className="field-error">{confirmError}</div>}
+        </label>
+
+        {/* CAPTCHA */}
+        <div className="captcha-row">
+          <ReCAPTCHA
+            ref={recaptchaRef}
+            sitekey={SITE_KEY || ""}
+            onChange={(token) => setCaptchaToken(token || "")}
+          />
+        </div>
 
         {status && <p className="auth-status success">{status}</p>}
         {error && <p className="auth-status error">{error}</p>}
 
-        <button className="primary-btn zoom-on-hover" type="submit" disabled={loading}>
+        <button className="primary-btn zoom-on-hover" type="submit" disabled={!canSubmit}>
           {loading ? "Creating..." : "Create account"}
         </button>
-      </form>
 
-      {debug && <pre className="auth-debug">{debug}</pre>}
+        <div className="auth-divider">
+            <span>or continue with</span>
+          </div>
+
+          <div className="social-auth">
+            <button type="button" className="social-btn google" onClick={() => handleOAuth("google")} disabled={loading}>
+              <FaGoogle size={18} />
+              Google
+            </button>
+          </div>
+      </form>
 
       <div className="auth-helper-row">
         <span>Already a member?</span>
-        <button
-          className="ghost-btn zoom-on-hover"
-          type="button"
-          onClick={() => onNavigate?.("/login")}
-        >
+        <button className="ghost-btn zoom-on-hover" type="button" onClick={() => onNavigate?.("/login")}>
           Login
         </button>
       </div>
-    </div>
+    </section>
   )
 }
 
