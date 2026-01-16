@@ -44,7 +44,7 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch, onAddToCa
     : `Showing ${products.length} items`
 
   return (
-    <section className="grocery-showcase fade-in">
+    <section className="grocery-showcase">
       <div className="result-count standalone">{resultSummary}</div>
 
       {products.length === 0 ? (
@@ -78,7 +78,7 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch, onAddToCa
             return (
               <article
                 key={product.slug}
-                className="grocery-card zoom-on-hover"
+                className="grocery-card"
                 onClick={() => onNavigate?.(`/product/${product.slug}`)}
                 role="button"
                 tabIndex={0}
@@ -90,6 +90,15 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch, onAddToCa
                 }}
               >
                 <div className="grocery-media" style={{ background: product.accent }}>
+                  {/* Stock Status Badge Overlay */}
+                  <div className="stock-overlay">
+                    <span
+                      className={`stock-dot stock-dot--${availability.tone}`}
+                      aria-hidden="true"
+                    />
+                    <span>{availability.label}</span>
+                  </div>
+
                   <img
                     src={product.image}
                     alt={product.name}
@@ -109,10 +118,6 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch, onAddToCa
                   <div className="grocery-meta">
                     <div className="price-block">
                       <span className="grocery-price">${product.price}</span>
-                      {/* keep your existing badge, but if out of stock force text */}
-                      <span className="stock-badge">
-                        {isOut ? "Out of stock" : product.badge}
-                      </span>
                     </div>
                   </div>
 
@@ -159,17 +164,6 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch, onAddToCa
                       >
                         {isOut ? "Out of stock" : "Add to cart"}
                       </button>
-                    </div>
-                  </div>
-
-                  <div className="availability-row">
-                    <span
-                      className={`stock-dot stock-dot--${availability.tone}`}
-                      aria-hidden="true"
-                    />
-                    <div className="availability-copy">
-                      <strong>{availability.label}</strong>
-                      <small>{availability.locationLabel}</small>
                     </div>
                   </div>
                 </div>

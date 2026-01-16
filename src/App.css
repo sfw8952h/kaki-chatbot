@@ -75,27 +75,164 @@
   text-decoration: underline;
 }
 
-.footer-links {
-  width: min(1160px, 92%);
-  margin: 0 auto 32px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
+/* ===========================
+   SIMPLE FOOTER
+=========================== */
+
+.simple-footer {
+  background: #f8f9fa;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  margin-top: 80px;
+  padding: 60px 0 0;
 }
 
-.footer-links button {
-  background: transparent;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  color: #0a6c51;
-  padding: 8px 12px;
-  border-radius: 10px;
-  cursor: pointer;
+.footer-content {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 0 5%;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  gap: 48px;
+  margin-bottom: 40px;
+}
+
+.footer-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.footer-logo {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #10b981;
+  margin: 0;
+  letter-spacing: 0.08em;
+}
+
+.footer-description {
+  color: #64748b;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin: 0;
+  max-width: 280px;
+}
+
+.footer-payments {
+  margin-top: 12px;
+}
+
+.footer-payments h4 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin: 0 0 12px 0;
+}
+
+.payment-icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.payment-badge {
+  font-size: 0.75rem;
+  padding: 6px 10px;
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  color: var(--text-muted);
   font-weight: 600;
 }
 
-.footer-links button:hover {
-  background: rgba(13, 162, 116, 0.08);
+.footer-links-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.footer-links-column h4 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin: 0 0 4px 0;
+}
+
+.footer-links-column button {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  text-align: left;
+  padding: 4px 0;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  font-family: inherit;
+}
+
+.footer-links-column button:hover {
+  color: #10b981;
+}
+
+.footer-bottom-bar {
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 20px 0;
+}
+
+.footer-bottom-content {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 0 5%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.footer-bottom-links {
+  display: flex;
+  gap: 24px;
+}
+
+.footer-bottom-links button {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  font-family: inherit;
+  padding: 0;
+}
+
+.footer-bottom-links button:hover {
+  color: var(--primary);
+}
+
+.footer-bottom-content p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 1024px) {
+  .footer-content {
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+}
+
+@media (max-width: 640px) {
+  .footer-content {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  .footer-bottom-content {
+    flex-direction: column;
+    text-align: center;
+  }
 }
 
 .recipe-spotlight {
@@ -131,6 +268,7 @@
     opacity: 0;
     transform: translateY(6px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -141,9 +279,11 @@
   0% {
     transform: translateY(0);
   }
+
   50% {
     transform: translateY(-6px);
   }
+
   100% {
     transform: translateY(0);
   }

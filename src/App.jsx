@@ -44,8 +44,8 @@ const createPromotionFromProduct = (product, index) => ({
     index === 0
       ? "Fresh savings"
       : index === 1
-      ? "Bakery favorite"
-      : "Pantry pick",
+        ? "Bakery favorite"
+        : "Pantry pick",
 
   headline: `${product.name} — member price`, // ✅ fixed encoding
   detail: `${product.desc} Now only $${toPriceNumber(product.price)} while fresh stock lasts.`,
@@ -111,55 +111,41 @@ function App() {
 
   // Auth-only routes (no header/footer/chatbot/top links)
   const isAuthOnlyRoute = useMemo(() => {
-  return currentPath === "/reset-password"
-}, [currentPath])
+    return currentPath === "/reset-password"
+  }, [currentPath])
 
   useEffect(() => {
-  const handlePop = () =>
-    setCurrentPath(normalizePath(window.location.pathname))
+    const handlePop = () =>
+      setCurrentPath(normalizePath(window.location.pathname))
 
-  window.addEventListener("popstate", handlePop)
-  return () => window.removeEventListener("popstate", handlePop)
-}, [])
+    window.addEventListener("popstate", handlePop)
+    return () => window.removeEventListener("popstate", handlePop)
+  }, [])
 
   // hydrate auth state on load and keep it in sync
   useEffect(() => {
-  if (!supabase) return
+    if (!supabase) return
 
-  const fetchProfile = async (userId) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("full_name, role, membership_tier, membership_points")
-      .eq("id", userId)
-      .maybeSingle()
+    const fetchProfile = async (userId) => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("full_name, role, membership_tier, membership_points")
+        .eq("id", userId)
+        .maybeSingle()
 
-    if (error) {
-      console.warn("Unable to load profile", error)
-      setProfile(null)
-      return
+      if (error) {
+        console.warn("Unable to load profile", error)
+        setProfile(null)
+        return
+      }
+      setProfile(data || null)
     }
-    setProfile(data || null)
-  }
 
-  const loadSession = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+    const loadSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
 
-    const user = session?.user ?? null
-    setSessionUser(user)
-
-    if (user) {
-      fetchProfile(user.id)
-    } else {
-      setProfile(null)
-    }
-  }
-
-  loadSession()
-
-  const { data: listener } = supabase.auth.onAuthStateChange(
-    (_event, session) => {
       const user = session?.user ?? null
       setSessionUser(user)
 
@@ -169,201 +155,215 @@ function App() {
         setProfile(null)
       }
     }
-  )
 
-  return () => {
-    listener?.subscription?.unsubscribe()
-  }
-}, [])
+    loadSession()
 
-  const navigate = (path) => {
-  const appPath = path.startsWith("/") ? path : `/${path}`
-  const targetPath = appendBase(appPath)
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const user = session?.user ?? null
+        setSessionUser(user)
 
-  if (window.location.pathname === targetPath) return
-
-  window.history.pushState({}, "", targetPath)
-  setCurrentPath(appPath)
-}
-
-  const handleLogout = async () => {
-  if (!supabase) return
-  await supabase.auth.signOut()
-  setSessionUser(null)
-  setProfile(null)
-  navigate("/")
-}
-
-  // supplier product proposals (in-memory)
-  // supplier product proposals (in-memory)
-const handleProposalSubmit = (proposal) => {
-  setProposals((prev) => [
-    {
-      ...proposal,
-      id: `sp-${Date.now()}`,
-      status: "pending",
-      createdAt: new Date().toISOString().slice(0, 10),
-    },
-    ...prev,
-  ])
-}
-
-const handleProposalDecision = (id, status) => {
-  setProposals((prev) =>
-    prev.map((p) => (p.id === id ? { ...p, status } : p))
-  )
-}
-
-// membership tier update
-const handleMembershipUpdate = useCallback(
-  async (tier) => {
-    if (!supabase || !sessionUser) return false
-
-    const { data, error } = await supabase
-      .from("profiles")
-      .update({ membership_tier: tier })
-      .eq("id", sessionUser.id)
-      .select("full_name, role, membership_tier, membership_points")
-      .maybeSingle()
-
-    if (error) {
-      console.warn("Unable to update membership tier", error)
-      return false
-    }
-
-    setProfile(data || null)
-    return true
-  },
-  [sessionUser]
-)
-
-// feedback handlers
-const handleFeedbackSubmitted = (entry) => {
-  setFeedbackEntries((prev) => [
-    {
-      ...entry,
-      id: entry.id || `fb-${Date.now()}`,
-      created_at: entry.created_at || new Date().toISOString(),
-    },
-    ...prev,
-  ])
-}
-
-const handleFeedbackDeleted = (id) => {
-  if (!id) return
-  setFeedbackEntries((prev) =>
-    prev.filter((entry) => entry.id !== id)
-  )
-}
-
-// promotions update
-const handlePromotionsUpdate = useCallback((nextPromotions) => {
-  if (!Array.isArray(nextPromotions)) return
-  setPromotions(nextPromotions)
-}, [])
-
-  // ---------------- CART ----------------
-const addToCart = useCallback((product, quantity = 1) => {
-  if (!product) return
-
-  const normalizedQuantity = Math.max(1, Number(quantity) || 1)
-  const unitPrice = toPriceNumber(product.price)
-
-  setCartItems((prev) => {
-    const existing = prev.find(
-      (item) => item.product_id === product.id
+        if (user) {
+          fetchProfile(user.id)
+        } else {
+          setProfile(null)
+        }
+      }
     )
 
-    if (existing) {
-      return prev.map((item) =>
-        item.product_id === product.id
-          ? { ...item, quantity: item.quantity + normalizedQuantity }
-          : item
-      )
+    return () => {
+      listener?.subscription?.unsubscribe()
     }
+  }, [])
 
-    return [
-      ...prev,
+  const navigate = (path) => {
+    const appPath = path.startsWith("/") ? path : `/${path}`
+    const targetPath = appendBase(appPath)
+
+    if (window.location.pathname === targetPath) return
+
+    window.history.pushState({}, "", targetPath)
+    setCurrentPath(appPath)
+  }
+
+  const handleLogout = async () => {
+    if (!supabase) return
+    await supabase.auth.signOut()
+    setSessionUser(null)
+    setProfile(null)
+    navigate("/")
+  }
+
+  // supplier product proposals (in-memory)
+  // supplier product proposals (in-memory)
+  const handleProposalSubmit = (proposal) => {
+    setProposals((prev) => [
       {
-        product_id: product.id, // ✅ REQUIRED for checkout & stock
-        slug: product.slug,
-        name: product.name,
-        thumbnail: product.image,
-        price: unitPrice,
-        quantity: normalizedQuantity,
+        ...proposal,
+        id: `sp-${Date.now()}`,
+        status: "pending",
+        createdAt: new Date().toISOString().slice(0, 10),
       },
-    ]
-  })
-}, [])
+      ...prev,
+    ])
+  }
 
-const removeFromCart = useCallback((slug) => {
-  if (!slug) return
-  setCartItems((prev) =>
-    prev.filter((item) => item.slug !== slug)
+  const handleProposalDecision = (id, status) => {
+    setProposals((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, status } : p))
+    )
+  }
+
+  // membership tier update
+  const handleMembershipUpdate = useCallback(
+    async (tier) => {
+      if (!supabase || !sessionUser) return false
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({ membership_tier: tier })
+        .eq("id", sessionUser.id)
+        .select("full_name, role, membership_tier, membership_points")
+        .maybeSingle()
+
+      if (error) {
+        console.warn("Unable to update membership tier", error)
+        return false
+      }
+
+      setProfile(data || null)
+      return true
+    },
+    [sessionUser]
   )
-}, [])
 
-const updateCartQuantity = useCallback((slug, nextQuantity) => {
-  setCartItems((prev) =>
-    prev
-      .map((item) =>
-        item.slug === slug
-          ? { ...item, quantity: Math.max(0, Number(nextQuantity) || 0) }
-          : item
+  // feedback handlers
+  const handleFeedbackSubmitted = (entry) => {
+    setFeedbackEntries((prev) => [
+      {
+        ...entry,
+        id: entry.id || `fb-${Date.now()}`,
+        created_at: entry.created_at || new Date().toISOString(),
+      },
+      ...prev,
+    ])
+  }
+
+  const handleFeedbackDeleted = (id) => {
+    if (!id) return
+    setFeedbackEntries((prev) =>
+      prev.filter((entry) => entry.id !== id)
+    )
+  }
+
+  // promotions update
+  const handlePromotionsUpdate = useCallback((nextPromotions) => {
+    if (!Array.isArray(nextPromotions)) return
+    setPromotions(nextPromotions)
+  }, [])
+
+  // ---------------- CART ----------------
+  const addToCart = useCallback((product, quantity = 1) => {
+    if (!product) return
+
+    const normalizedQuantity = Math.max(1, Number(quantity) || 1)
+    const unitPrice = toPriceNumber(product.price)
+
+    setCartItems((prev) => {
+      const existing = prev.find(
+        (item) => item.product_id === product.id
       )
-      .filter((item) => item.quantity > 0)
+
+      if (existing) {
+        return prev.map((item) =>
+          item.product_id === product.id
+            ? { ...item, quantity: item.quantity + normalizedQuantity }
+            : item
+        )
+      }
+
+      return [
+        ...prev,
+        {
+          product_id: product.id, // ✅ REQUIRED for checkout & stock
+          slug: product.slug,
+          name: product.name,
+          thumbnail: product.image,
+          price: unitPrice,
+          quantity: normalizedQuantity,
+        },
+      ]
+    })
+  }, [])
+
+  const removeFromCart = useCallback((slug) => {
+    if (!slug) return
+    setCartItems((prev) =>
+      prev.filter((item) => item.slug !== slug)
+    )
+  }, [])
+
+  const updateCartQuantity = useCallback((slug, nextQuantity) => {
+    setCartItems((prev) =>
+      prev
+        .map((item) =>
+          item.slug === slug
+            ? { ...item, quantity: Math.max(0, Number(nextQuantity) || 0) }
+            : item
+        )
+        .filter((item) => item.quantity > 0)
+    )
+  }, [])
+
+  // ---------------- CART METRICS ----------------
+  const cartSubtotal = useMemo(
+    () =>
+      cartItems.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      ),
+    [cartItems]
   )
-}, [])
 
-// ---------------- CART METRICS ----------------
-const cartSubtotal = useMemo(
-  () =>
-    cartItems.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0
-    ),
-  [cartItems]
-)
+  const cartCount = useMemo(
+    () =>
+      cartItems.reduce((sum, item) => sum + item.quantity, 0),
+    [cartItems]
+  )
 
-const cartCount = useMemo(
-  () =>
-    cartItems.reduce((sum, item) => sum + item.quantity, 0),
-  [cartItems]
-)
-
-// ---------------- HELPERS ----------------
-const toSlug = (name) =>
-  name
-    ? name
+  // ---------------- HELPERS ----------------
+  const toSlug = (name) =>
+    name
+      ? name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)/g, "")
-    : `product-${Date.now()}`
+      : `product-${Date.now()}`
 
-const computeStockBadge = (onlineStock, storeAvailability = []) => {
-  const bestStock = Math.max(
-    onlineStock || 0,
-    ...(storeAvailability || []).map((s) =>
-      Number.isFinite(s.stock) ? s.stock : 0
+  const computeStockBadge = (onlineStock, storeAvailability = []) => {
+    const bestStock = Math.max(
+      onlineStock || 0,
+      ...(storeAvailability || []).map((s) =>
+        Number.isFinite(s.stock) ? s.stock : 0
+      )
     )
-  )
 
-  if (bestStock <= 0) return "Out of stock"
-  if (bestStock < 5) return "Low stock"
-  return "In stock"
-}
+    if (bestStock <= 0) return "Out of stock"
+    if (bestStock < 5) return "Low stock"
+    return "In stock"
+  }
 
-const buildAvailability = (product) => {
-  const onlineStock = Number.isFinite(Number(product.onlineStock))
-    ? Number(product.onlineStock)
-    : Number.isFinite(Number(product.stock))
-      ? Number(product.stock)
-      : 0
+  const buildAvailability = (product) => {
+    const onlineStock = Number.isFinite(Number(product.onlineStock))
+      ? Number(product.onlineStock)
+      : Number.isFinite(Number(product.stock))
+        ? Number(product.stock)
+        : 0
 
-  const storeAvailability =
-    Array.isArray(product.storeAvailability) && product.storeAvailability.length > 0
-      ? product.storeAvailability
-      : storeLocations.map((store, idx) => ({
+    const storeAvailability =
+      Array.isArray(product.storeAvailability) && product.storeAvailability.length > 0
+        ? product.storeAvailability
+        : storeLocations.map((store, idx) => ({
           storeId: store.id,
           storeName: store.name,
           stock: Math.max(
@@ -372,13 +372,13 @@ const buildAvailability = (product) => {
           ),
         }))
 
-  return {
-    onlineStock,
-    storeAvailability,
+    return {
+      onlineStock,
+      storeAvailability,
+    }
   }
-}
 
-    const mapAdminProductToFront = useCallback(
+  const mapAdminProductToFront = useCallback(
     (product) => {
       const slug = product.slug || toSlug(product.name)
 
@@ -426,7 +426,7 @@ const buildAvailability = (product) => {
     },
     [],
 
-    
+
   )
 
   const loadCatalog = useCallback(async () => {
@@ -438,10 +438,10 @@ const buildAvailability = (product) => {
     }
 
     const { data, error } = await supabase
-  .from("products")
-  .select("*")
-  .eq("status", "approved")
-  .order("created_at", { ascending: false })
+      .from("products")
+      .select("*")
+      .eq("status", "approved")
+      .order("created_at", { ascending: false })
 
     if (error) {
       console.warn("Unable to load products, falling back to seed data", error)
@@ -479,116 +479,116 @@ const buildAvailability = (product) => {
   }, [sessionUser])
 
   useEffect(() => {
-  loadCatalog()
-}, [loadCatalog])
+    loadCatalog()
+  }, [loadCatalog])
 
   useEffect(() => {
     loadUserOrders()
   }, [loadUserOrders])
 
   // ✅ FIX: redirect away from login once authenticated
-useEffect(() => {
-  if (sessionUser && currentPath === "/login") {
-    navigate("/")
-  }
-}, [sessionUser, currentPath])
+  useEffect(() => {
+    if (sessionUser && currentPath === "/login") {
+      navigate("/")
+    }
+  }, [sessionUser, currentPath])
 
   const handlePlaceOrder = useCallback(
-  async (orderPayload) => {
-    if (!supabase) return
+    async (orderPayload) => {
+      if (!supabase) return
 
-    if (!sessionUser) {
-      alert("Please login to place an order.")
-      navigate("/login")
-      return
-    }
+      if (!sessionUser) {
+        alert("Please login to place an order.")
+        navigate("/login")
+        return
+      }
 
-    try {
-      const total = toPriceNumber(orderPayload.total)
-
-      // ✅ 1) Place order + update stock (your existing RPC)
-      const { data: orderId, error } = await supabase.rpc("place_order_with_stock", {
-        p_profile_id: sessionUser.id,
-        p_total: total,
-        p_items: orderPayload.items.map((item) => ({
-          product_id: item.product_id || item.id,
-          slug: item.slug,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-        })),
-      })
-
-      if (error) throw error
-      if (!orderId) throw new Error("Order failed: no order id returned.")
-
-      // ✅ 2) Save checkout details into orders table
-      // (Make sure these columns exist in orders table:
-      // delivery_address text, delivery_notes text, payment_method text, payment_ref text)
-      const { error: updateErr } = await supabase
-        .from("orders")
-        .update({
-          delivery_address: orderPayload.address || "",
-          delivery_notes: orderPayload.notes || "",
-          payment_method: orderPayload.payment_method || "",
-          payment_ref: orderPayload.paynow_reference || null,
-          payment_confirmed: !!orderPayload.payment_confirmed,
-        })
-        .eq("id", orderId)
-
-      if (updateErr) console.warn("Order details update failed:", updateErr)
-
-      // ✅ 3) (OPTIONAL) Send confirmation email via Supabase Edge Function
-      // This is the cleanest way (no bank integration needed).
-      // If you haven’t created the function yet, you can skip this and add later.
       try {
-        await supabase.functions.invoke("send-order-confirmation", {
-          body: {
-            order_id: orderId,
-            email: sessionUser.email,
-            name: profile?.full_name || sessionUser.email,
-            total,
-            payment_method: orderPayload.payment_method,
-          },
+        const total = toPriceNumber(orderPayload.total)
+
+        // ✅ 1) Place order + update stock (your existing RPC)
+        const { data: orderId, error } = await supabase.rpc("place_order_with_stock", {
+          p_profile_id: sessionUser.id,
+          p_total: total,
+          p_items: orderPayload.items.map((item) => ({
+            product_id: item.product_id || item.id,
+            slug: item.slug,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+          })),
         })
-      } catch (mailErr) {
-        console.warn("Email function failed (ok for now):", mailErr)
-      }
 
-      // ✅ 4) Points + tier (your existing logic)
-      const pointsEarned = Math.floor(total * POINTS_PER_DOLLAR)
+        if (error) throw error
+        if (!orderId) throw new Error("Order failed: no order id returned.")
 
-      if (pointsEarned > 0) {
-        const currentPoints = Number(profile?.membership_points ?? 0)
-        const nextPoints = currentPoints + pointsEarned
-        const nextTier = getTierByPoints(nextPoints)
-
-        const { data: updatedProfile } = await supabase
-          .from("profiles")
+        // ✅ 2) Save checkout details into orders table
+        // (Make sure these columns exist in orders table:
+        // delivery_address text, delivery_notes text, payment_method text, payment_ref text)
+        const { error: updateErr } = await supabase
+          .from("orders")
           .update({
-            membership_points: nextPoints,
-            membership_tier: nextTier?.id || profile?.membership_tier || "",
+            delivery_address: orderPayload.address || "",
+            delivery_notes: orderPayload.notes || "",
+            payment_method: orderPayload.payment_method || "",
+            payment_ref: orderPayload.paynow_reference || null,
+            payment_confirmed: !!orderPayload.payment_confirmed,
           })
-          .eq("id", sessionUser.id)
-          .select("full_name, role, membership_tier, membership_points")
-          .maybeSingle()
+          .eq("id", orderId)
 
-        if (updatedProfile) setProfile(updatedProfile)
+        if (updateErr) console.warn("Order details update failed:", updateErr)
+
+        // ✅ 3) (OPTIONAL) Send confirmation email via Supabase Edge Function
+        // This is the cleanest way (no bank integration needed).
+        // If you haven’t created the function yet, you can skip this and add later.
+        try {
+          await supabase.functions.invoke("send-order-confirmation", {
+            body: {
+              order_id: orderId,
+              email: sessionUser.email,
+              name: profile?.full_name || sessionUser.email,
+              total,
+              payment_method: orderPayload.payment_method,
+            },
+          })
+        } catch (mailErr) {
+          console.warn("Email function failed (ok for now):", mailErr)
+        }
+
+        // ✅ 4) Points + tier (your existing logic)
+        const pointsEarned = Math.floor(total * POINTS_PER_DOLLAR)
+
+        if (pointsEarned > 0) {
+          const currentPoints = Number(profile?.membership_points ?? 0)
+          const nextPoints = currentPoints + pointsEarned
+          const nextTier = getTierByPoints(nextPoints)
+
+          const { data: updatedProfile } = await supabase
+            .from("profiles")
+            .update({
+              membership_points: nextPoints,
+              membership_tier: nextTier?.id || profile?.membership_tier || "",
+            })
+            .eq("id", sessionUser.id)
+            .select("full_name, role, membership_tier, membership_points")
+            .maybeSingle()
+
+          if (updatedProfile) setProfile(updatedProfile)
+        }
+
+        // ✅ 5) Refresh UI
+        await loadUserOrders()
+        await loadCatalog()
+
+        // ✅ 6) Clear cart ONLY after success
+        setCartItems([])
+      } catch (err) {
+        console.error(err)
+        alert(err.message || "Checkout failed. Please try again.")
       }
-
-      // ✅ 5) Refresh UI
-      await loadUserOrders()
-      await loadCatalog()
-
-      // ✅ 6) Clear cart ONLY after success
-      setCartItems([])
-    } catch (err) {
-      console.error(err)
-      alert(err.message || "Checkout failed. Please try again.")
-    }
-  },
-  [sessionUser, supabase, profile, loadUserOrders, loadCatalog, navigate]
-)
+    },
+    [sessionUser, supabase, profile, loadUserOrders, loadCatalog, navigate]
+  )
 
   const upsertCatalogLocally = (product) => {
     const mapped = mapAdminProductToFront(product)
@@ -694,7 +694,7 @@ useEffect(() => {
     return normalized
   }
 
-    const loadSavedItems = useCallback(async () => {
+  const loadSavedItems = useCallback(async () => {
     if (!supabase || !sessionUser) {
       setSavedItems([])
       return
@@ -751,11 +751,11 @@ useEffect(() => {
       store.id ||
       (store.name
         ? store.name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/(^-|-$)/g, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "")
         : `store-${Date.now()}`)
-        const payload = {
+    const payload = {
       id: product.id,
       name: product.name,
       slug,
@@ -805,98 +805,98 @@ useEffect(() => {
   )
 
   const handleHomeReset = useCallback(() => {
-  setSearchTerm("")
-  setRecipeSuggestion(null)
-  setActiveCategory("All Categories")
-  navigate("/")
-  window.scrollTo({ top: 0, behavior: "smooth" })
-}, [navigate])
-  
-const handleCategorySelect = useCallback(
-  (category) => {
-    setActiveCategory(category || "All Categories")
-    // always go back to home so the user sees filtered products
-    if (currentPath !== "/") navigate("/")
-  },
-  [currentPath],
-)
+    setSearchTerm("")
+    setRecipeSuggestion(null)
+    setActiveCategory("All Categories")
+    navigate("/")
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }, [navigate])
+
+  const handleCategorySelect = useCallback(
+    (category) => {
+      setActiveCategory(category || "All Categories")
+      // always go back to home so the user sees filtered products
+      if (currentPath !== "/") navigate("/")
+    },
+    [currentPath],
+  )
   const filteredCatalog = useMemo(() => {
-  const normalize = (value) =>
-    String(value || "")
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
+    const normalize = (value) =>
+      String(value || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
 
-  const stopWords = new Set([
-    "fresh",
-    "large",
-    "small",
-    "medium",
-    "cup",
-    "cups",
-    "tbsp",
-    "tsp",
-    "tablespoon",
-    "teaspoon",
-    "chopped",
-    "minced",
-    "diced",
-    "sliced",
-    "cooked",
-    "uncooked",
-    "optional",
-    "ground",
-    "peeled",
-    "oil",
-  ])
+    const stopWords = new Set([
+      "fresh",
+      "large",
+      "small",
+      "medium",
+      "cup",
+      "cups",
+      "tbsp",
+      "tsp",
+      "tablespoon",
+      "teaspoon",
+      "chopped",
+      "minced",
+      "diced",
+      "sliced",
+      "cooked",
+      "uncooked",
+      "optional",
+      "ground",
+      "peeled",
+      "oil",
+    ])
 
-  const ingredientTerms = recipeSuggestion
-    ? recipeSuggestion.ingredients.map((item) => normalize(item)).filter(Boolean)
-    : []
+    const ingredientTerms = recipeSuggestion
+      ? recipeSuggestion.ingredients.map((item) => normalize(item)).filter(Boolean)
+      : []
 
-  const ingredientKeywords = ingredientTerms.flatMap((term) => {
-    const tokens = term.split(" ").filter((token) => token && !stopWords.has(token))
-    return [term, ...tokens.filter((token) => token.length >= 3)]
-  })
-
-  let baseList = catalog
-
-  // ✅ Recipe ingredient filter (your original)
-  if (ingredientKeywords.length) {
-    baseList = baseList.filter((product) => {
-      const haystack = normalize(
-        [product.name, product.tag, product.category, product.brand, product.desc].join(" ")
-      )
-      return ingredientKeywords.some((term) => haystack.includes(term))
+    const ingredientKeywords = ingredientTerms.flatMap((term) => {
+      const tokens = term.split(" ").filter((token) => token && !stopWords.has(token))
+      return [term, ...tokens.filter((token) => token.length >= 3)]
     })
-  }
 
-  // ✅ Category filter (ONLY ONCE, with mapping)
-  if (activeCategory && activeCategory !== "All Categories") {
-    const mapLabelToDbCategory = {
-      "Pantry Staples": "Rice & Grains",
-      "Home Care": "Household",
-      "Snacks & Treats": "Confectionery",
+    let baseList = catalog
+
+    // ✅ Recipe ingredient filter (your original)
+    if (ingredientKeywords.length) {
+      baseList = baseList.filter((product) => {
+        const haystack = normalize(
+          [product.name, product.tag, product.category, product.brand, product.desc].join(" ")
+        )
+        return ingredientKeywords.some((term) => haystack.includes(term))
+      })
     }
 
-    const target = mapLabelToDbCategory[activeCategory] || activeCategory
+    // ✅ Category filter (ONLY ONCE, with mapping)
+    if (activeCategory && activeCategory !== "All Categories") {
+      const mapLabelToDbCategory = {
+        "Pantry Staples": "Rice & Grains",
+        "Home Care": "Household",
+        "Snacks & Treats": "Confectionery",
+      }
 
-    baseList = baseList.filter((product) => {
-      const cat = String(product.category || product.tag || "").toLowerCase()
-      return cat === String(target).toLowerCase()
+      const target = mapLabelToDbCategory[activeCategory] || activeCategory
+
+      baseList = baseList.filter((product) => {
+        const cat = String(product.category || product.tag || "").toLowerCase()
+        return cat === String(target).toLowerCase()
+      })
+    }
+
+    // ✅ Search filter (your original)
+    const term = normalize(searchTerm)
+    if (!term) return baseList
+
+    return baseList.filter((product) => {
+      const fields = [product.name, product.tag, product.category, product.brand, product.desc]
+      return fields.some((field) => normalize(field).includes(term))
     })
-  }
-
-  // ✅ Search filter (your original)
-  const term = normalize(searchTerm)
-  if (!term) return baseList
-
-  return baseList.filter((product) => {
-    const fields = [product.name, product.tag, product.category, product.brand, product.desc]
-    return fields.some((field) => normalize(field).includes(term))
-  })
-}, [catalog, searchTerm, recipeSuggestion, activeCategory])
+  }, [catalog, searchTerm, recipeSuggestion, activeCategory])
 
   const catalogPromotions = useMemo(() => {
     if (catalogSource !== "supabase") return []
@@ -916,16 +916,16 @@ const handleCategorySelect = useCallback(
     if (currentPath === "/login") return <LoginPage onNavigate={navigate} />
     if (currentPath === "/reset-password") return <ResetPasswordPage onNavigate={navigate} />
     if (currentPath === "/checkout")
-  return (
-    <CheckoutPage
-      user={sessionUser}
-      profileName={profile?.full_name}
-      items={cartItems}
-      subtotal={cartSubtotal}
-      onNavigate={navigate}
-      onCheckout={handlePlaceOrder}   
-    />
-  )
+      return (
+        <CheckoutPage
+          user={sessionUser}
+          profileName={profile?.full_name}
+          items={cartItems}
+          subtotal={cartSubtotal}
+          onNavigate={navigate}
+          onCheckout={handlePlaceOrder}
+        />
+      )
     if (currentPath === "/cart")
       return (
         <CartPage
@@ -998,14 +998,14 @@ const handleCategorySelect = useCallback(
     if (currentPath === "/privacy") return <PrivacyPage />
     if (currentPath === "/locations") return <LocationsPage locations={storeLocations} />
     if (currentPath === "/saved")
-  return (
-    <SavedItemsPage
-      user={sessionUser}
-      items={savedItems}
-      onAddToCart={addToCart}
-      onNavigate={navigate}
-    />
-  )
+      return (
+        <SavedItemsPage
+          user={sessionUser}
+          items={savedItems}
+          onAddToCart={addToCart}
+          onNavigate={navigate}
+        />
+      )
     if (currentPath === "/membership")
       return (
         <MembershipPage
@@ -1036,8 +1036,8 @@ const handleCategorySelect = useCallback(
     const activePromotions =
       catalogSource === "supabase" && catalogPromotions.length ? catalogPromotions : promotions
     const hasSearch =
-  (searchTerm || "").trim().length > 0 ||
-  (recipeSuggestion && recipeSuggestion.ingredients?.length > 0)
+      (searchTerm || "").trim().length > 0 ||
+      (recipeSuggestion && recipeSuggestion.ingredients?.length > 0)
 
     return (
       <>
@@ -1136,54 +1136,90 @@ const handleCategorySelect = useCallback(
       {/* Hide header on auth-only routes */}
       {!isAuthOnlyRoute && (
         <Header
-  onNavigate={navigate}
-  onHomeReset={handleHomeReset}
-  user={sessionUser}
-  profileName={profile?.full_name}
-  onLogout={handleLogout}
-  searchTerm={searchTerm}
-  onSearch={handleSearch}
-  cartCount={cartCount}
-  activeCategory={activeCategory}
-  onCategoryChange={setActiveCategory}
-/>
+          onNavigate={navigate}
+          onHomeReset={handleHomeReset}
+          user={sessionUser}
+          profileName={profile?.full_name}
+          onLogout={handleLogout}
+          searchTerm={searchTerm}
+          onSearch={handleSearch}
+          cartCount={cartCount}
+          activeCategory={activeCategory}
+          onCategoryChange={setActiveCategory}
+          products={catalog}
+        />
       )}
 
       <main className="page-body">{mainContent}</main>
 
       {/* Hide footer on auth-only routes */}
       {!isAuthOnlyRoute && (
-        <footer className="footer-links">
-          <button type="button" onClick={() => navigate("/history")}>
-            Purchase history
-          </button>
-          <button type="button" onClick={() => navigate("/tracking")}>
-            Order tracking
-          </button>
-          <button type="button" onClick={() => navigate("/feedback")}>
-            Feedback
-          </button>
-          <button type="button" onClick={() => navigate("/about")}>
-            About
-          </button>
-          <button type="button" onClick={() => navigate("/locations")}>
-            Store locations
-          </button>
-          <button type="button" onClick={() => navigate("/membership")}>
-            Membership
-          </button>
-          <button type="button" onClick={() => navigate("/saved")}>
-            Saved items
-          </button>
-          <button type="button" onClick={() => navigate("/terms")}>
-            Terms
-          </button>
-          <button type="button" onClick={() => navigate("/privacy")}>
-            Privacy
-          </button>
+        <footer className="simple-footer">
+          <div className="footer-content">
+            {/* Company Info */}
+            <div className="footer-brand">
+              <h3 className="footer-logo">Kaki</h3>
+              <p className="footer-description">
+                Your trusted online grocery store delivering fresh products across Singapore.
+              </p>
+              <div className="footer-payments">
+                <h4>Accepted Payments</h4>
+                <div className="payment-icons">
+                  <span className="payment-badge">💳 Visa</span>
+                  <span className="payment-badge">💳 Mastercard</span>
+                  <span className="payment-badge">📱 PayNow</span>
+                  <span className="payment-badge">🍎 Apple Pay</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Shop Links */}
+            <div className="footer-links-column">
+              <h4>Shop</h4>
+              <button type="button" onClick={() => navigate("/")}>All Products</button>
+              <button type="button" onClick={() => navigate("/recipes")}>Recipes</button>
+              <button type="button" onClick={() => navigate("/saved")}>Saved Items</button>
+              <button type="button" onClick={() => navigate("/membership")}>Membership</button>
+            </div>
+
+            {/* About Links */}
+            <div className="footer-links-column">
+              <h4>About us</h4>
+              <button type="button" onClick={() => navigate("/about")}>About Kaki</button>
+              <button type="button" onClick={() => navigate("/locations")}>Store Locations</button>
+              <button type="button" onClick={() => navigate("/feedback")}>Feedback</button>
+            </div>
+
+            {/* Services Links */}
+            <div className="footer-links-column">
+              <h4>Services</h4>
+              <button type="button" onClick={() => navigate("/history")}>Order History</button>
+              <button type="button" onClick={() => navigate("/tracking")}>Track Orders</button>
+              <button type="button" onClick={() => navigate("/profile")}>My Account</button>
+            </div>
+
+            {/* Help Links */}
+            <div className="footer-links-column">
+              <h4>Help</h4>
+              <button type="button" onClick={() => navigate("/help")}>Help Center</button>
+              <button type="button" onClick={() => navigate("/terms")}>Terms of Use</button>
+              <button type="button" onClick={() => navigate("/privacy")}>Privacy Policy</button>
+            </div>
+          </div>
+
+          {/* Footer Bottom */}
+          <div className="footer-bottom-bar">
+            <div className="footer-bottom-content">
+              <div className="footer-bottom-links">
+                <button type="button" onClick={() => navigate("/terms")}>Terms of Use</button>
+                <button type="button" onClick={() => navigate("/privacy")}>Privacy Policy</button>
+              </div>
+              <p>All Rights reserved by Kaki | 2026</p>
+            </div>
+          </div>
         </footer>
       )}
-      
+
       {!isAuthOnlyRoute && (
         <Chatbot
           catalog={catalog}

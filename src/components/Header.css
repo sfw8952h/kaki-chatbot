@@ -16,11 +16,10 @@
 }
 
 .header-inner {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  flex-wrap: wrap;
+  gap: 20px;
 }
 
 /* =========================
@@ -99,44 +98,54 @@
   top: calc(100% + 12px);
   left: 0;
   right: 0;
-  background: #ffffff;
+  background: white;
   border-radius: 20px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15),
-              0 0 0 1px rgba(0, 0, 0, 0.05);
+    0 0 0 1px rgba(0, 0, 0, 0.05);
   overflow: hidden;
   animation: fadeIn 0.3s ease-out;
   z-index: 1002;
+  max-height: 500px;
+  overflow-y: auto;
 }
 
-.search-overlay-full {
-  padding: 24px;
+.search-overlay-content {
+  padding: 20px;
 }
 
 .overlay-section {
-  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .search-overlay-window h5 {
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-weight: 700;
   color: #1e293b;
-  margin-bottom: 16px;
+  margin: 0 0 8px 0;
 }
 
 .suggestion-list {
   list-style: none;
   padding: 0;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .suggestion-list li {
-  padding: 8px 0;
+  padding: 10px 12px;
   font-size: 0.9rem;
   color: #64748b;
   cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
 }
 
 .suggestion-list li:hover {
+  background: #f1f5f9;
   color: #10b981;
 }
 
@@ -150,9 +159,10 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 8px;
+  padding: 12px;
   border-radius: 12px;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .overlay-product-item:hover {
@@ -160,11 +170,19 @@
 }
 
 .overlay-product-item img {
-  width: 50px;
-  height: 50px;
+  width: 60px;
+  height: 60px;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: 10px;
   background: #f8fafc;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.overlay-product-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
 }
 
 .item-name {
@@ -174,9 +192,17 @@
 }
 
 .item-price {
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: #10b981;
+}
+
+.no-results {
+  color: #64748b;
+  font-size: 0.9rem;
+  padding: 20px;
+  text-align: center;
+  margin: 0;
 }
 
 .search-overlay-footer {
@@ -318,7 +344,7 @@
     gap: 12px;
   }
 
-  .search-overlay-full {
+  .search-overlay-content {
     padding: 16px;
   }
 }
@@ -328,6 +354,13 @@
 ========================= */
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

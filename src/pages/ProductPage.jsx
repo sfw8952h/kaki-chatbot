@@ -187,10 +187,6 @@ function ProductPage({ slug, products, onAddToCart, onNavigate }) {
         {saveError && <p className="auth-status error">{saveError}</p>}
 
         <div className="product-details">
-          <p className="label">SKU: MB3442</p>
-          <p className="label">
-            Categories: <a href="#">Produce</a>, <a href="#">Fresh</a>, <a href="#">Snacks</a>
-          </p>
           <p>
             {product.desc}
             {isOutOfStock ? " Currently out of stock." : " In stock and ready to ship."}
