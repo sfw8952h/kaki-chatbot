@@ -253,19 +253,36 @@ function Chatbot({
   const [pendingCartChoice, setPendingCartChoice] = useState(null)
   const messagesEndRef = useRef(null)
 
+  const normalizeCommandText = useCallback((value) => {
+    if (!value) return ""
+    return value
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+  }, [])
+
   const checkIfPurchasedBefore = useCallback(
     (product) => {
       if (!product || !Array.isArray(orders)) return false
+
+      const pSlug = String(product.slug || "").toLowerCase()
+      const pName = normalizeCommandText(product.name || "")
+
       return orders.some((order) =>
-        (order.order_items || []).some(
-          (item) =>
-            item.slug === product.slug ||
-            item.product_id === product.id ||
-            item.id === product.id,
-        ),
+        (order.order_items || []).some((item) => {
+          // Syncing with user's Supabase schema: 'product_slug' and 'product_name'
+          const iSlug = String(item.product_slug || "").toLowerCase()
+          const iName = normalizeCommandText(item.product_name || item.name || "")
+
+          return (
+            (pSlug && iSlug && iSlug === pSlug) ||
+            (pName && iName && iName === pName)
+          )
+        }),
       )
     },
-    [orders],
+    [orders, normalizeCommandText],
   )
 
   useEffect(() => {
@@ -358,14 +375,6 @@ function Chatbot({
     [allowedNavigationSet, onNavigate],
   )
 
-  const normalizeCommandText = useCallback((value) => {
-    if (!value) return ""
-    return value
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-  }, [])
 
   const findRecipeIdea = useCallback(
     (text) => {
@@ -613,6 +622,11 @@ function Chatbot({
           else if (category.includes(normalizedHint) || brand.includes(normalizedHint)) score = 20
           else if (tokens.some((token) => name.includes(token))) score = 10
 
+          // Boost score if purchased before so it moves to top 5
+          if (score > 0 && checkIfPurchasedBefore(product)) {
+            score += 2000
+          }
+
           return { product, score }
         })
         .filter((entry) => entry.score > 0)
@@ -640,7 +654,8 @@ function Chatbot({
         onAddToCart?.(product, quantity)
         let reply = `Added ${quantity} x ${product.name || product.slug} to your cart.`
         if (previouslyPurchased) {
-          reply += " You've ordered this version before! Do you want to repurchase? (Already added one to your cart, but feel free to add more!)"
+          reply = `You have purchased this version of ${product.name || "item"
+            } before! Would you want to re-order again? I've added it to your cart for you.`
         }
         return reply
       }
@@ -721,14 +736,21 @@ function Chatbot({
         return reply
       }
 
+      const items = matches.map((p) => ({
+        product: p,
+        purchasedBefore: checkIfPurchasedBefore(p),
+      }))
+
+      const hasRepurchase = items.some((item) => item.purchasedBefore)
+      const description = hasRepurchase
+        ? "I noticed you have purchased some of these before! Would you want to re-order again?"
+        : "Here are the items I found. You can add them to your cart or view details."
+
       return {
         type: "product-list",
         title: `Matches for "${productHint}"`,
-        description: "Here are the items I found. You can add them to your cart or view details.",
-        items: matches.map((p) => ({
-          product: p,
-          purchasedBefore: checkIfPurchasedBefore(p),
-        })),
+        description,
+        items,
       }
     },
     [findProductMatches, safeNavigate, checkIfPurchasedBefore],
@@ -783,26 +805,34 @@ function Chatbot({
         const productHint = normalized.replace(/^(i|want|need|get|some|the|to|buy|looking|for|show|me)\s+/g, "").trim()
         const matches = findProductMatches(productHint)
         if (matches.length > 0) {
+          const items = matches.map((p) => ({
+            product: p,
+            purchasedBefore: checkIfPurchasedBefore(p),
+          }))
+
           if (matches.length === 1) {
             const product = matches[0]
             const previouslyPurchased = checkIfPurchasedBefore(product)
-            let reply = `I found ${product.name}. Would you like to add it to your cart or view details?`
-            if (previouslyPurchased) reply += " (You've ordered this before!)"
+            let desc = `I found ${product.name}. Would you like to add it to your cart or view details?`
+            if (previouslyPurchased) {
+              desc = `You have purchased this version of ${product.name} before! Would you want to re-order again?`
+            }
             return {
               type: "product-list",
               title: `Found ${product.name}`,
-              description: reply,
-              items: [{ product, purchasedBefore: previouslyPurchased }],
+              description: desc,
+              items,
             }
           }
+
+          const hasRepurchase = items.some((i) => i.purchasedBefore)
           return {
             type: "product-list",
             title: `Found ${matches.length} matches for "${productHint}"`,
-            description: "Select an item to add to your cart or view details.",
-            items: matches.map((p) => ({
-              product: p,
-              purchasedBefore: checkIfPurchasedBefore(p),
-            })),
+            description: hasRepurchase
+              ? "You have purchased some of these versions before! Would you want to re-order again?"
+              : "Select an item to add to your cart or view details.",
+            items,
           }
         }
       }
@@ -1089,12 +1119,14 @@ function Chatbot({
                         const { product, purchasedBefore } = entry
                         return (
                           <div key={product.slug} className="chatbot-card-item">
-                            <img src={product.image} alt={product.name} />
+                            {product.image && (
+                              <img src={product.image} alt="" aria-hidden="true" />
+                            )}
                             <div>
                               <span>{product.name}</span>
                               {purchasedBefore && (
                                 <span className="chatbot-repurchase-badge">
-                                  Ordered before! Repurchase?
+                                  You have purchased this before! Re-order?
                                 </span>
                               )}
                               <div className="chatbot-card-actions">
