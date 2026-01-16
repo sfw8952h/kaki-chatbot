@@ -1,4 +1,4 @@
-// component: SupplierSignUpPage
+// component: SupplierSignUpPage  (same style as member signup)
 import { useState } from "react"
 import "./Pages.css"
 import { getSupabaseClient } from "../lib/supabaseClient"
@@ -8,24 +8,44 @@ function SupplierSignUpPage({ onNavigate }) {
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+
   const [status, setStatus] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-  const [debug, setDebug] = useState("")
+
+  // password strength (silent)
+  const passwordStrength = (() => {
+    const rules = [
+      password.length >= 8,
+      /[A-Z]/.test(password),
+      /[a-z]/.test(password),
+      /[0-9]/.test(password),
+      /[^A-Za-z0-9]/.test(password),
+    ].filter(Boolean).length
+
+    if (rules >= 5) return "strong"
+    if (rules >= 3) return "medium"
+    if (password.length > 0) return "weak"
+    return ""
+  })()
+
+  const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword
 
   const handleSignUp = async (event) => {
     event.preventDefault()
     setStatus("")
     setError("")
     setLoading(true)
-    setDebug("")
 
     const cleanEmail = email.trim().toLowerCase()
-    const cleanCompanyName = companyName.trim()
+    const cleanCompany = companyName.trim()
     const cleanPhone = phone.trim()
 
-    if (!cleanCompanyName || !cleanEmail || !password) {
-      setError("Please fill in your company name, email, and password.")
+    if (!cleanCompany || !cleanEmail || !password || !confirmPassword) {
+      setError("Please fill in company name, email, and password.")
       setLoading(false)
       return
     }
@@ -37,57 +57,54 @@ function SupplierSignUpPage({ onNavigate }) {
       return
     }
 
+    if (passwordStrength !== "strong") {
+      setError("Please choose a stronger password.")
+      setLoading(false)
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.")
+      setLoading(false)
+      return
+    }
+
     try {
       const supabase = getSupabaseClient()
 
-      // 1) sign up (auth only)
+      // 1) SIGN UP (auth)
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: cleanEmail,
         password,
         options: {
-          data: {
-            company_name: cleanCompanyName,
-            phone: cleanPhone,
-            requested_role: "supplier", // optional metadata (helpful for debugging/admin review)
-          },
-          emailRedirectTo: window?.location?.origin ? `${window.location.origin}/login` : undefined,
+          data: { company_name: cleanCompany, phone: cleanPhone, role: "supplier" },
+          emailRedirectTo: window?.location?.origin
+            ? `${window.location.origin}/supplier-login`
+            : undefined,
         },
       })
 
-      if (signUpError) {
-        setDebug(JSON.stringify({ stage: "auth.signUp", error: signUpError }, null, 2))
-        throw signUpError
-      }
+      if (signUpError) throw signUpError
 
       const user = signUpData?.user
       if (!user) throw new Error("Signup succeeded but user is missing from response.")
 
+      // 2) INSERT PROFILE ROW (optional; depends on your RLS)
       const { error: profileError } = await supabase.from("profiles").insert({
         id: user.id,
-        full_name: cleanCompanyName,
+        full_name: cleanCompany,
         phone: cleanPhone,
         role: "supplier",
       })
 
       if (profileError) {
-        setDebug(JSON.stringify({ stage: "profiles.insert", error: profileError }, null, 2))
         console.error("Profile insert error:", profileError)
-        throw profileError
+        // You can choose to show this, but leaving it as console error is okay
       }
 
-      setStatus("Supplier account created. Please confirm via email and log in.")
-      await supabase.auth.signOut()
-      // optional: send them to supplier login
-      // onNavigate?.("/supplier-login")
+      setStatus("Supplier account created! Check your email to confirm.")
     } catch (err) {
-      console.error("Signup error:", err)
-      setDebug(JSON.stringify({ stage: "caught error", message: err?.message }, null, 2))
-
-      if (err?.message?.includes("Supabase client is not configured")) {
-        setError("Supabase is not configured. Check your .env values.")
-      } else {
-        setError(err?.message || "Unable to complete signup right now.")
-      }
+      setError(err?.message || "Unable to complete signup right now.")
     } finally {
       setLoading(false)
     }
@@ -96,8 +113,8 @@ function SupplierSignUpPage({ onNavigate }) {
   return (
     <div className="page-panel">
       <p className="eyebrow">Supplier registration</p>
-      <h2>Create a Supplier Account</h2>
-      <p>Supplier accounts are created by admins and shared with suppliers directly.</p>
+      <h2>Register as a Supplier</h2>
+      <p>Create a supplier account to propose products and manage listings in the Supplier Center.</p>
 
       <form className="signup-form" onSubmit={handleSignUp}>
         <label>
@@ -107,7 +124,7 @@ function SupplierSignUpPage({ onNavigate }) {
             placeholder="Your company name"
             value={companyName}
             onChange={(event) => setCompanyName(event.target.value)}
-            required
+            disabled={loading}
           />
         </label>
 
@@ -118,7 +135,7 @@ function SupplierSignUpPage({ onNavigate }) {
             placeholder="name@example.com"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            required
+            disabled={loading}
           />
         </label>
 
@@ -129,39 +146,78 @@ function SupplierSignUpPage({ onNavigate }) {
             placeholder="+65 1234 5678"
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
+            disabled={loading}
           />
         </label>
 
         <label>
           Set a password
-          <input
-            type="password"
-            placeholder="Choose a secure password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
+          <div className="password-row">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Choose a secure password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={loading}
+            />
+            <button
+              type="button"
+              className="ghost-btn zoom-on-hover password-toggle"
+              onClick={() => setShowPassword((v) => !v)}
+              disabled={loading}
+            >
+              {showPassword ? "Hide" : "Show"}
+            </button>
+          </div>
+
+          {passwordStrength && (
+            <div className={`pw-strength-label ${passwordStrength}`}>
+              {passwordStrength.charAt(0).toUpperCase() + passwordStrength.slice(1)}
+            </div>
+          )}
+        </label>
+
+        <label>
+          Confirm password
+          <div className="password-row">
+            <input
+              type={showConfirm ? "text" : "password"}
+              placeholder="Confirm your password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              disabled={loading}
+            />
+            <button
+              type="button"
+              className="ghost-btn zoom-on-hover password-toggle"
+              onClick={() => setShowConfirm((v) => !v)}
+              disabled={loading}
+            >
+              {showConfirm ? "Hide" : "Show"}
+            </button>
+          </div>
         </label>
 
         {status && <p className="auth-status success">{status}</p>}
         {error && <p className="auth-status error">{error}</p>}
 
-        <button className="primary-btn zoom-on-hover" type="submit" disabled={loading}>
-          {loading ? "Creating..." : "Create supplier account"}
+        <button
+          className="primary-btn zoom-on-hover"
+          type="submit"
+          disabled={loading || passwordStrength !== "strong" || !passwordsMatch}
+        >
+          {loading ? "Creating..." : "Create account"}
         </button>
       </form>
 
-      {debug && <pre className="auth-debug">{debug}</pre>}
-
       <div className="auth-helper-row">
-        <span>Need to return to the dashboard?</span>
+        <span>Already a supplier?</span>
         <button
           className="ghost-btn zoom-on-hover"
           type="button"
-          onClick={() => onNavigate?.("/admin")}
-          disabled={loading}
+          onClick={() => onNavigate?.("/supplier-login")}
         >
-          Back to admin center
+          Login
         </button>
       </div>
     </div>

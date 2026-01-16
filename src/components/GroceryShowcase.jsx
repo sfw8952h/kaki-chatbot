@@ -26,18 +26,16 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch, onAddToCa
         }
         return best
       },
-      { stock: onlineStock, label: "Online delivery" }
+      { stock: onlineStock, label: "Online delivery" },
     )
 
-    const stock = topStore.stock
+    const stock = Number(topStore.stock) || 0
+
     const label =
-      stock <= 0
-        ? "Out of stock"
-        : stock < 5
-          ? `${stock} left`
-          : "In stock"
+      stock <= 0 ? "Out of stock" : stock < 5 ? `${stock} left` : "In stock"
     const tone = stock <= 0 ? "out" : stock < 5 ? "low" : "in"
     const locationLabel = stock <= 0 ? "Unavailable" : topStore.label
+
     return { label, tone, locationLabel, stock }
   }
 
@@ -73,7 +71,10 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch, onAddToCa
           {products.map((product) => {
             const availability = getAvailability(product)
             const stockLimit = availability.stock || 0
+
+            const isOut = stockLimit <= 0
             const qty = Math.min(quantities[product.slug] || 1, Math.max(stockLimit, 1))
+
             return (
               <article
                 key={product.slug}
@@ -89,24 +90,32 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch, onAddToCa
                 }}
               >
                 <div className="grocery-media" style={{ background: product.accent }}>
-                  {/* Premium Stock Indicator Overlay */}
-                  <div className={`stock-indicator ${availability.tone === 'out' ? 'out-of-stock' : ''}`}>
-                    <span className={`stock-dot stock-dot--${availability.tone}`} aria-hidden="true" />
-                    <span>{availability.label}</span>
-                  </div>
-                  <img src={product.image} alt={product.name} className="grocery-media-image" />
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    className="grocery-media-image"
+                    onError={(e) => {
+                      e.currentTarget.src = "https://via.placeholder.com/420x520.png?text=Product"
+                    }}
+                  />
                 </div>
+
                 <div className="grocery-text">
                   <div className="grocery-heading">
                     <h4>{product.name}</h4>
                     <p>{product.desc}</p>
                   </div>
+
                   <div className="grocery-meta">
                     <div className="price-block">
                       <span className="grocery-price">${product.price}</span>
-                      {product.badge && <span className="stock-badge">{product.badge}</span>}
+                      {/* keep your existing badge, but if out of stock force text */}
+                      <span className="stock-badge">
+                        {isOut ? "Out of stock" : product.badge}
+                      </span>
                     </div>
                   </div>
+
                   <div className="grocery-cta-row">
                     <div className="grocery-cta">
                       <button
@@ -115,35 +124,53 @@ function GroceryShowcase({ onNavigate, products, searchTerm, onSearch, onAddToCa
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation()
-                          handleQuantityChange(product.slug, -1)
+                          handleQuantityChange(product.slug, -1, stockLimit)
                         }}
-                        disabled={qty <= 1}
+                        disabled={isOut || qty <= 1}
                       >
                         -
                       </button>
-                      <span className="qty-count">{qty}</span>
+
+                      <span className="qty-count">{isOut ? 0 : qty}</span>
+
                       <button
                         className="qty-btn"
                         aria-label="Increase quantity"
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation()
-                          handleQuantityChange(product.slug, 1)
+                          handleQuantityChange(product.slug, 1, stockLimit)
                         }}
+                        disabled={isOut || qty >= Math.max(1, stockLimit)}
                       >
                         +
                       </button>
+
+                      <button
+                        className="add-cart-btn"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          if (isOut) return
+                          onAddToCart?.(product, qty)
+                        }}
+                        disabled={isOut}
+                        aria-disabled={isOut}
+                      >
+                        {isOut ? "Out of stock" : "Add to cart"}
+                      </button>
                     </div>
-                    <button
-                      className="add-cart-btn"
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        onAddToCart?.(product, qty)
-                      }}
-                    >
-                      Add to cart
-                    </button>
+                  </div>
+
+                  <div className="availability-row">
+                    <span
+                      className={`stock-dot stock-dot--${availability.tone}`}
+                      aria-hidden="true"
+                    />
+                    <div className="availability-copy">
+                      <strong>{availability.label}</strong>
+                      <small>{availability.locationLabel}</small>
+                    </div>
                   </div>
                 </div>
               </article>

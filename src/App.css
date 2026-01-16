@@ -75,133 +75,27 @@
   text-decoration: underline;
 }
 
-.site-footer {
-  background: var(--surface);
-  border-top: 1px solid rgba(15, 23, 42, 0.12);
-  padding: 28px 0 18px;
-  color: var(--primary);
-}
-
-.footer-main {
+.footer-links {
   width: min(1160px, 92%);
-  margin: 0 auto 18px;
-  display: grid;
-  grid-template-columns: minmax(220px, 1.1fr) minmax(0, 2fr);
-  gap: 28px;
-}
-
-.footer-brand {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.footer-logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 700;
-  color: #0a6c51;
-}
-
-.footer-logo-mark {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  background: #0a6c51;
-  color: #f8fafc;
-  display: grid;
-  place-items: center;
-  font-size: 1rem;
-}
-
-.footer-logo-text {
-  font-size: 1.35rem;
-}
-
-.footer-blurb {
-  font-size: 0.9rem;
-  line-height: 1.5;
-  color: var(--text-muted);
-}
-
-.footer-subtitle {
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: #0a6c51;
-  margin-top: 6px;
-}
-
-.footer-payments {
+  margin: 0 auto 32px;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-}
-
-.payment-pill {
-  background: var(--surface-soft);
-  border: 1px solid rgba(13, 162, 116, 0.2);
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #0a6c51;
-}
-
-.footer-columns {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 22px;
-}
-
-.footer-col {
-  display: flex;
-  flex-direction: column;
   gap: 10px;
-  font-size: 0.88rem;
-  color: var(--text-muted);
+  justify-content: center;
 }
 
-.footer-title {
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  color: #0a6c51;
-  margin-bottom: 2px;
-  font-weight: 700;
-}
-
-.footer-col button {
+.footer-links button {
   background: transparent;
-  border: none;
-  padding: 0;
-  text-align: left;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.footer-col button:hover {
+  border: 1px solid rgba(15, 23, 42, 0.12);
   color: #0a6c51;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
 }
 
-
-@media (max-width: 900px) {
-  .footer-main {
-    grid-template-columns: 1fr;
-  }
-
-  .footer-columns {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-}
-
-@media (max-width: 600px) {
-  .footer-columns {
-    grid-template-columns: 1fr;
-  }
+.footer-links button:hover {
+  background: rgba(13, 162, 116, 0.08);
 }
 
 .recipe-spotlight {

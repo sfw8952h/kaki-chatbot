@@ -1,6 +1,7 @@
 // component: SupplierCenterPage
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import "./Pages.css"
+import { getSupabaseClient } from "../lib/supabaseClient"
 
 const summary = [
   { label: "Open POs", value: "48" },
@@ -16,7 +17,7 @@ const navItems = [
 ]
 
 // renders supplier proposal submission and dashboards
-function SupplierCenterPage({ onSubmitProposal, proposals = [] }) {
+function SupplierCenterPage({ onSubmitProposal, proposals = [], onNavigate }) {
   const [form, setForm] = useState({
     name: "",
     price: "",
@@ -26,6 +27,69 @@ function SupplierCenterPage({ onSubmitProposal, proposals = [] }) {
   })
   const [statusMsg, setStatusMsg] = useState("")
   const [activeTab, setActiveTab] = useState("dashboard")
+
+  // ✅ NEW: auth/role gate
+  const [checkingAuth, setCheckingAuth] = useState(true)
+  const [gateError, setGateError] = useState("")
+
+  useEffect(() => {
+    let cancelled = false
+
+    const guard = async () => {
+      setGateError("")
+      setCheckingAuth(true)
+
+      try {
+        const supabase = getSupabaseClient()
+
+        // 1) must be logged in
+        const { data: sessionData, error: sessionErr } = await supabase.auth.getSession()
+        if (sessionErr) throw sessionErr
+
+        const userId = sessionData?.session?.user?.id
+        if (!userId) {
+          // not logged in
+          if (!cancelled) onNavigate?.("/supplier-login")
+          return
+        }
+
+        // 2) must be supplier
+        const { data: profile, error: profileErr } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", userId)
+          .single()
+
+        // if missing profile row OR role not supplier -> sign out + redirect
+        if (profileErr || !profile || profile.role !== "supplier") {
+          await supabase.auth.signOut()
+          if (!cancelled) {
+            setGateError("Supplier access only. Please sign in with a supplier account.")
+            onNavigate?.("/supplier-login")
+          }
+          return
+        }
+      } catch (e) {
+        // safest: sign out + redirect
+        try {
+          const supabase = getSupabaseClient()
+          await supabase.auth.signOut()
+        } catch {}
+
+        if (!cancelled) {
+          setGateError(e?.message || "Unable to verify supplier access. Please sign in again.")
+          onNavigate?.("/supplier-login")
+        }
+      } finally {
+        if (!cancelled) setCheckingAuth(false)
+      }
+    }
+
+    guard()
+    return () => {
+      cancelled = true
+    }
+  }, [onNavigate])
 
   const handleSubmit = (event) => {
     event.preventDefault()
@@ -43,6 +107,24 @@ function SupplierCenterPage({ onSubmitProposal, proposals = [] }) {
     })
     setStatusMsg("Proposal submitted for admin review.")
     setForm({ name: "", price: "", category: "", image: "", stock: "" })
+  }
+
+  // ✅ NEW: block UI while checking
+  if (checkingAuth) {
+    return (
+      <section className="page-panel">
+        <p className="muted">Checking supplier access...</p>
+      </section>
+    )
+  }
+
+  // ✅ NEW: (optional) show reason briefly (you already redirect)
+  if (gateError) {
+    return (
+      <section className="page-panel">
+        <p className="auth-status error">{gateError}</p>
+      </section>
+    )
   }
 
   return (
