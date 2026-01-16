@@ -252,6 +252,37 @@ function Chatbot({
   const [error, setError] = useState("")
   const [pendingCartChoice, setPendingCartChoice] = useState(null)
   const messagesEndRef = useRef(null)
+  const isResizing = useRef(false)
+  const [dimensions, setDimensions] = useState({ width: 480, height: 700 })
+
+  const handleMouseMove = useCallback((e) => {
+    if (!isResizing.current) return
+    // Fixed bottom: 100px, right: 24px
+    const newWidth = window.innerWidth - 24 - e.clientX
+    const newHeight = window.innerHeight - 100 - e.clientY
+    setDimensions({
+      width: Math.max(350, Math.min(newWidth, window.innerWidth - 48)),
+      height: Math.max(400, Math.min(newHeight, window.innerHeight - 120)),
+    })
+  }, [])
+
+  const stopResizing = useCallback(() => {
+    isResizing.current = false
+    document.removeEventListener("mousemove", handleMouseMove)
+    document.removeEventListener("mouseup", stopResizing)
+    document.body.style.cursor = "default"
+  }, [handleMouseMove])
+
+  const startResizing = useCallback(
+    (e) => {
+      e.preventDefault()
+      isResizing.current = true
+      document.addEventListener("mousemove", handleMouseMove)
+      document.addEventListener("mouseup", stopResizing)
+      document.body.style.cursor = "nwse-resize"
+    },
+    [handleMouseMove, stopResizing],
+  )
 
   const normalizeCommandText = useCallback((value) => {
     if (!value) return ""
@@ -1041,7 +1072,12 @@ function Chatbot({
       </button>
 
       {open && (
-        <div className="chatbot-box fade-in">
+        <div
+          className="chatbot-box"
+          id="chatbot-window"
+          style={{ width: dimensions.width, height: dimensions.height }}
+        >
+          <div className="chatbot-resize-handle" onMouseDown={startResizing} title="Resize chat" />
           <div className="chatbot-header">
             <h4>AI Chatbot</h4>
             <button
