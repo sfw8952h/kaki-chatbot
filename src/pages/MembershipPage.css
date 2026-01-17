@@ -1,124 +1,250 @@
 .membership-page {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 32px;
+  animation: fadeIn 0.6s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .membership-alert {
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 16px;
-  padding: 18px;
-  background: #fff4f4;
-  color: #b91c1c;
+  border-radius: 20px;
+  padding: 24px;
+  background: linear-gradient(135deg, #fef2f2, #fee2e2);
+  color: #991b1b;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
+  border: 1px solid rgba(153, 27, 27, 0.1);
+  box-shadow: 0 4px 12px rgba(153, 27, 27, 0.05);
 }
 
 .membership-status {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  background: var(--surface-soft);
-  border-radius: 24px;
-  padding: 20px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  gap: 24px;
+  background: white;
+  border-radius: 28px;
+  padding: 32px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
 }
 
 .membership-status h3 {
   margin: 0;
-  font-size: 2rem;
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: #1e293b;
+  letter-spacing: -0.02em;
 }
 
 .points-block {
   text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .points-block strong {
-  font-size: 2rem;
-  display: block;
+  font-size: 2.8rem;
+  font-weight: 900;
+  line-height: 1;
+  background: linear-gradient(135deg, #10b981, #059669);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.points-block span {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: 4px;
 }
 
 .progress-row {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
+  background: #f8fafc;
+  padding: 24px;
+  border-radius: 24px;
+  border: 1px solid rgba(0, 0, 0, 0.02);
 }
 
 .progress-bar {
   width: 100%;
-  height: 10px;
+  height: 14px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.1);
+  background: #e2e8f0;
   overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .progress-bar span {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(135deg, #0da274, #0a8a62);
+  background: linear-gradient(90deg, #10b981, #059669);
+  transition: width 1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .tier-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  margin-top: 12px;
 }
 
 .tier-card {
-  border-radius: 20px;
-  padding: 18px;
+  border-radius: 32px;
+  padding: 32px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  color: #0f172a;
-  border: 1px solid rgba(15, 23, 42, 0.2);
+  gap: 24px;
+  color: #1e293b;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  position: relative;
+  overflow: hidden;
+}
+
+.tier-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
 }
 
 .tier-card--active {
-  border-color: #0a6c51;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.15);
+  border: 2px solid #10b981;
+  box-shadow: 0 20px 40px rgba(16, 185, 129, 0.15);
+}
+
+.tier-card--active::before {
+  content: 'Current';
+  position: absolute;
+  top: 16px;
+  right: -32px;
+  background: #10b981;
+  color: white;
+  padding: 4px 40px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  transform: rotate(45deg);
 }
 
 .tier-card header {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
-.tier-card strong {
-  font-size: 1.25rem;
+.tier-card header strong {
+  font-size: 1.8rem;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+}
+
+.tier-card header span {
+  font-size: 0.95rem;
+  font-weight: 600;
+  opacity: 0.8;
 }
 
 .tier-card ul {
   margin: 0;
-  padding-left: 18px;
+  padding: 0;
+  list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
+  flex: 1;
+}
+
+.tier-card li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.tier-card li::before {
+  content: '✓';
+  font-weight: 900;
+  color: inherit;
+}
+
+.tier-card .ghost-btn {
+  background: white;
+  border: none;
+  border-radius: 16px;
+  padding: 14px;
+  font-weight: 700;
+  color: #1e293b;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.tier-card .ghost-btn:hover:not(:disabled) {
+  background: #1e293b;
+  color: white;
+  transform: scale(1.02);
+}
+
+.tier-card .ghost-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .benefits-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 16px;
-  background: #0f172a;
-  color: #f8fafc;
+  gap: 16px;
+  padding: 32px;
+  border-radius: 28px;
+  background: #1e293b;
+  color: #f1f5f9;
+  box-shadow: 0 20px 40px rgba(30, 41, 59, 0.15);
 }
 
-.success-text {
-  margin-top: 12px;
-  color: #0a6c51;
-  font-weight: 600;
+.benefits-list p {
+  margin: 0;
+  font-size: 1.1rem;
+  line-height: 1.6;
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+.benefits-list p::before {
+  content: '✦ ';
+  color: #10b981;
 }
 
 @media (max-width: 720px) {
   .membership-status {
     flex-direction: column;
+    align-items: flex-start;
+    padding: 24px;
+  }
+
+  .points-block {
+    align-items: flex-start;
+    text-align: left;
+    margin-top: 16px;
   }
 }

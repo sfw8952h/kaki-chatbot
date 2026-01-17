@@ -1101,10 +1101,11 @@ function App() {
         <ProfilePage
           onNavigate={navigate}
           user={sessionUser}
-          profileName={profile?.full_name}
+          profile={profile}
           orders={orders}
+          onLogout={handleLogout}
           onProfileUpdated={(name) => {
-            if (name) setProfile({ full_name: name })
+            if (name) setProfile((prev) => ({ ...prev, full_name: name }))
           }}
         />
       )

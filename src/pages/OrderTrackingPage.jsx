@@ -1,7 +1,20 @@
 // component: OrderTrackingPage
 import { useState, useEffect, useMemo, useCallback } from "react"
-import "./Pages.css"
+import "./OrderTrackingPage.css"
 import { getSupabaseClient } from "../lib/supabaseClient"
+import {
+  FiMapPin,
+  FiShoppingBag,
+  FiTruck,
+  FiCheckCircle,
+  FiClock,
+  FiUser,
+  FiPackage,
+  FiMessageSquare,
+  FiEdit3,
+  FiArrowRight,
+  FiActivity
+} from "react-icons/fi"
 
 const preferences = ["Leave at door", "Text on arrival", "No cutlery", "Eco packaging"]
 
@@ -16,6 +29,16 @@ const resolveFallbackAddress = (user) => {
     postal: meta.postal_code || "",
     instructions: meta.instructions || "",
   }
+}
+
+const getStatusStep = (status) => {
+  const s = (status || "").toLowerCase()
+  if (s.includes("process")) return 1
+  if (s.includes("confirmed") || s.includes("preparing")) return 2
+  if (s.includes("way") || s.includes("shipped") || s.includes("transit")) return 3
+  if (s.includes("near") || s.includes("arriving") || s.includes("delivery")) return 4
+  if (s.includes("delivered")) return 5
+  return 1
 }
 
 const normaliseOrder = (order) => {
@@ -34,7 +57,8 @@ const normaliseOrder = (order) => {
     id: order.id || order.order_number || `#${Math.random().toString(36).slice(2, 6)}`,
     title: summary || order.title || "FreshMart order",
     eta,
-    step: order.status || "Processing",
+    status: order.status || "Processing",
+    step: getStatusStep(order.status),
     carrier: order.carrier || "FreshMart logistics",
     address:
       order.delivery_address ||
@@ -109,13 +133,19 @@ function OrderTrackingPage({ user, onNavigate, orders = [] }) {
 
   if (!user) {
     return (
-      <section className="page-panel">
-        <p className="eyebrow">Tracking</p>
-        <h2>Login required</h2>
-        <p className="guest-detail">Sign in to view your active deliveries and update instructions.</p>
-        <button className="primary-btn" type="button" onClick={() => onNavigate?.("/login")}>
-          Go to login
-        </button>
+      <section className="order-tracking-container">
+        <div className="empty-state">
+          <FiUser className="empty-icon" />
+          <h2>Authentication Required</h2>
+          <p>Sign in to view your live orders and delivery status.</p>
+          <button
+            className="order-btn primary"
+            style={{ maxWidth: '200px', margin: '24px auto' }}
+            onClick={() => onNavigate?.("/login")}
+          >
+            Go to Login
+          </button>
+        </div>
       </section>
     )
   }
@@ -125,95 +155,157 @@ function OrderTrackingPage({ user, onNavigate, orders = [] }) {
     .map(normaliseOrder)
 
   return (
-    <section className="page-panel profile-shell">
-      <header className="profile-head">
-        <div>
-          <p className="eyebrow">Delivery & tracking</p>
-          <h2>Manage deliveries with your profile</h2>
-          <p className="guest-detail">
-            Saved addresses and delivery preferences are shared with the chatbot for faster checkout and updates.
-          </p>
+    <div className="order-tracking-container">
+      <header className="tracking-header">
+        <div className="tracking-header-content">
+          <p className="address-label" style={{ background: 'transparent', padding: 0, color: 'var(--tracking-primary)' }}>Tracking Dashboard</p>
+          <h1>Your Deliveries</h1>
+          <p>Track and manage your active FreshMart orders</p>
         </div>
-        <div className="pill-chip">Live updates</div>
+        <div className="tracking-stats-badge">
+          <FiActivity />
+          <span>{activeOrders.length} {activeOrders.length === 1 ? 'order' : 'orders'} in progress</span>
+        </div>
       </header>
 
-      <div className="tracking-grid">
-        <article className="card-slab">
-          <p className="dash-label">Delivery preferences</p>
-          <div className="chip-row">
+      <div className="tracking-grid-top">
+        <article className="tracking-info-card">
+          <h3><FiMapPin /> Default Address</h3>
+          {addressLoading ? (
+            <div className="address-content">
+              <p className="muted">Synchronizing address data...</p>
+            </div>
+          ) : defaultAddress ? (
+            <div className="address-content">
+              <span className="address-label">{defaultAddress.label}</span>
+              <p className="address-details">
+                {defaultAddress.details}<br />
+                {defaultAddress.city} {defaultAddress.postal}
+              </p>
+              {defaultAddress.instructions && (
+                <p className="address-notes">
+                  " {defaultAddress.instructions} "
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="address-content">
+              <p className="muted">No primary address set in your profile.</p>
+            </div>
+          )}
+          <button className="card-action-btn">
+            <FiEdit3 /> Manage Locations
+          </button>
+        </article>
+
+        <article className="tracking-info-card">
+          <h3><FiCheckCircle /> Delivery Preferences</h3>
+          <div className="preferences-chips">
             {preferences.map((pref) => (
-              <span key={pref} className="pill pill-soft">
+              <span key={pref} className="pref-chip">
                 {pref}
               </span>
             ))}
           </div>
-          <button className="ghost-btn" type="button">
-            Edit preferences
-          </button>
-        </article>
-
-        <article className="card-slab">
-          <p className="dash-label">Default address</p>
-          {addressLoading ? (
-            <p className="muted">Loading address...</p>
-          ) : defaultAddress ? (
-            <>
-              <h4>{defaultAddress.label}</h4>
-              <p className="muted">{defaultAddress.details}</p>
-              {defaultAddress.city && <p className="muted">{defaultAddress.city}</p>}
-              {defaultAddress.postal && <p className="muted">{defaultAddress.postal}</p>}
-              {defaultAddress.instructions && <p className="muted">Notes: {defaultAddress.instructions}</p>}
-            </>
-          ) : (
-            <p className="muted">No default address saved yet.</p>
-          )}
-          {addressError && <p className="auth-status error">{addressError}</p>}
-          <button className="ghost-btn" type="button">
-            Switch address
+          <button className="card-action-btn">
+            Configure Preferences
           </button>
         </article>
       </div>
 
-      <article className="card-slab">
-        <div className="board-top">
-          <div>
-            <p className="dash-label">Active orders</p>
-            <strong>Live tracking</strong>
-            <p className="guest-detail">Real-time delivery status with profile-linked addresses.</p>
-          </div>
-          <button className="primary-btn" type="button" onClick={() => onNavigate?.("/history")}>
-            View full history
+      <section className="active-orders-section">
+        <div className="section-title-row">
+          <h2>Active Deliveries</h2>
+          <button className="card-action-btn" style={{ width: 'auto', padding: '10px 20px' }} onClick={() => onNavigate?.("/history")}>
+            Full History <FiArrowRight />
           </button>
         </div>
 
-        <div className="tracking-list">
+        <div className="orders-list">
           {activeOrders.length === 0 ? (
-            <p className="muted">You have no active orders right now.</p>
+            <div className="empty-state">
+              <FiPackage className="empty-icon" />
+              <h3>No Active Orders</h3>
+              <p>When you place a new order, you'll see the live progress here.</p>
+              <button
+                className="order-btn primary"
+                style={{ maxWidth: '200px', margin: '24px auto' }}
+                onClick={() => onNavigate?.("/")}
+              >
+                Start Shopping
+              </button>
+            </div>
           ) : (
-            activeOrders.map((order) => (
-              <div key={order.id} className="tracking-card">
-                <div className="tracking-head">
-                  <div>
-                    <p className="dash-label">{order.id}</p>
-                    <strong>{order.title}</strong>
-                    <p className="muted">{order.address}</p>
+            activeOrders.map((order) => {
+              const progressPercentage = Math.min((order.step / 4) * 100, 100)
+
+              return (
+                <div key={order.id} className="order-tracking-card">
+                  <div className="order-card-header">
+                    <div className="order-id-group">
+                      <h4>{order.title}</h4>
+                      <p>#{order.id.replace('#', '')}</p>
+                    </div>
+                    <span className="carrier-badge">
+                      <FiTruck /> {order.carrier}
+                    </span>
                   </div>
-                  <span className="pill pill-neutral">{order.carrier}</span>
+
+                  <div className="order-card-body">
+                    <div className="order-meta-info">
+                      <div className="meta-item">
+                        <span className="meta-item-label">Delivery To</span>
+                        <span className="meta-item-value">{order.address}</span>
+                      </div>
+                      <div className="meta-item" style={{ textAlign: 'right' }}>
+                        <span className="meta-item-label">Estimated Delivery</span>
+                        <span className="meta-item-value">{order.eta}</span>
+                      </div>
+                    </div>
+
+                    <div className="order-progress-container">
+                      <div className="progress-track">
+                        <div className="progress-bar-fill" style={{ width: `${progressPercentage}%` }}></div>
+
+                        {[
+                          { label: 'Processing', icon: <FiPackage /> },
+                          { label: 'Confirmed', icon: <FiCheckCircle /> },
+                          { label: 'On the way', icon: <FiTruck /> },
+                          { label: 'Arriving', icon: <FiMapPin /> }
+                        ].map((s, idx) => {
+                          const stepNum = idx + 1
+                          let statusClass = ""
+                          if (order.step > stepNum) statusClass = "completed"
+                          else if (order.step === stepNum) statusClass = "active"
+
+                          return (
+                            <div key={s.label} className={`progress-step ${statusClass}`}>
+                              <div className="step-node">
+                                {order.step > stepNum ? <FiCheckCircle /> : s.icon}
+                              </div>
+                              <span className="step-label">{s.label}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="order-card-actions">
+                      <button className="order-btn primary">
+                        <FiMessageSquare /> Contact Support
+                      </button>
+                      <button className="order-btn secondary">
+                        <FiEdit3 /> Edit Instructions
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="tracking-meta">
-                  <span className="pill pill-soft">{order.step}</span>
-                  <span className="pill pill-soft">{order.eta}</span>
-                </div>
-                <div className="action-badges">
-                  <button className="badge-btn primary">Contact rider</button>
-                  <button className="badge-btn">Change instructions</button>
-                </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
-      </article>
-    </section>
+      </section>
+    </div>
   )
 }
 

@@ -1,23 +1,32 @@
 // component: ProfilePage
 import { useMemo, useState, useEffect, useCallback } from "react"
-import "./Pages.css"
+import "./ProfilePage.css"
 import { getSupabaseClient } from "../lib/supabaseClient"
+import { getTierByPoints, tiers } from "../data/membershipTiers"
+import {
+  FiUser,
+  FiMail,
+  FiPhone,
+  FiMapPin,
+  FiPackage,
+  FiAward,
+  FiZap,
+  FiCheckCircle,
+  FiArrowRight,
+  FiPlus,
+  FiTrash2,
+  FiClock,
+  FiCreditCard
+} from "react-icons/fi"
 
 const navTabs = [
-  { id: "personal", label: "Personal information" },
-  { id: "membership", label: "Membership points" },
-  { id: "addresses", label: "Saved delivery address" },
-  { id: "orders", label: "Recent orders" },
+  { id: "personal", label: "Account profile", icon: <FiUser /> },
+  { id: "membership", label: "Rewards & Points", icon: <FiAward /> },
+  { id: "addresses", label: "Delivery addresses", icon: <FiMapPin /> },
+  { id: "orders", label: "Order history", icon: <FiPackage /> },
 ]
 
-const membershipSnapshot = {
-  tier: "Emerald",
-  points: 1265,
-  nextRewardAt: 1500,
-  benefits: ["5% off produce", "Priority chat support", "Free delivery on weekends"],
-}
-
-function ProfilePage({ onNavigate, user, profileName, onProfileUpdated, orders = [] }) {
+function ProfilePage({ onNavigate, user, profile, onProfileUpdated, onLogout, orders = [] }) {
   const supabase = useMemo(() => {
     try {
       return getSupabaseClient()
@@ -29,7 +38,6 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated, orders =
 
   const [fullName, setFullName] = useState("")
   const [phone, setPhone] = useState("")
-  const [address, setAddress] = useState("")
   const [status, setStatus] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
@@ -49,7 +57,6 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated, orders =
   const [addressFormError, setAddressFormError] = useState("")
   const [savingAddress, setSavingAddress] = useState(false)
 
-  // ensures the user session is valid before db updates
   const ensureSession = async () => {
     if (!supabase) throw new Error("Supabase is not configured.")
     const { data, error: sessionError } = await supabase.auth.getSession()
@@ -62,13 +69,18 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated, orders =
     return refreshed.session
   }
 
-  // 1) load profile data from public.profiles (source of truth)
   useEffect(() => {
     const loadProfile = async () => {
       if (!supabase || !user) return
       setError("")
       try {
         await ensureSession()
+
+        if (profile) {
+          setFullName(profile.full_name || "")
+          setPhone(profile.phone || "")
+          return
+        }
 
         const { data, error: fetchError } = await supabase
           .from("profiles")
@@ -78,35 +90,32 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated, orders =
 
         if (fetchError) throw fetchError
 
-        // prefer db profile, but fall back to props / auth metadata for first-time users
         const meta = user.user_metadata || {}
-        const resolvedName = data?.full_name ?? profileName ?? meta.full_name ?? meta.name ?? ""
+        const resolvedName = data?.full_name ?? meta.full_name ?? meta.name ?? ""
         const resolvedPhone = data?.phone ?? meta.phone ?? ""
 
         setFullName(resolvedName || "")
         setPhone(resolvedPhone || "")
       } catch (err) {
         console.error("Load profile error:", err)
-        // don’t block the whole page, just show a warning
         setError(err.message || "Unable to load profile right now.")
         const meta = user?.user_metadata || {}
-        setFullName(profileName || meta.full_name || meta.name || "")
+        setFullName(meta.full_name || meta.name || "")
         setPhone(meta.phone || "")
       }
     }
 
     loadProfile()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, user])
+  }, [supabase, user, profile])
 
-  // keep address textbox initialised from user metadata only if present
   useEffect(() => {
-    if (!user) return
-    const meta = user.user_metadata || {}
-    setAddress(meta.address || "")
-  }, [user])
+    if (profile) {
+      setFullName(profile.full_name || "")
+      setPhone(profile.phone || "")
+    }
+  }, [profile])
 
-  // 2) update profile in public.profiles (NOT auth metadata)
   const handleUpdate = async (event) => {
     event.preventDefault()
     setStatus("")
@@ -123,7 +132,6 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated, orders =
         id: user.id,
         full_name: fullName.trim() || null,
         phone: phone.trim() || null,
-        // role is not touched here (keeps existing role)
       }
 
       const { error: upsertError } = await supabase
@@ -160,7 +168,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated, orders =
       setAddresses(data || [])
     } catch (fetchErr) {
       console.error("Load addresses error:", fetchErr)
-      setAddressListError(fetchErr.message || "Unable to load addresses. Please try again in a moment.")
+      setAddressListError(fetchErr.message || "Unable to load addresses.")
       setAddresses([])
     } finally {
       setAddressesLoading(false)
@@ -170,55 +178,6 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated, orders =
   useEffect(() => {
     refreshAddresses()
   }, [refreshAddresses])
-
-  useEffect(() => {
-    if (!address && addresses.length > 0) {
-      const defaultEntry = addresses.find((entry) => entry.is_default) || addresses[0]
-      if (defaultEntry?.details) setAddress(defaultEntry.details)
-    }
-  }, [addresses, address])
-
-  useEffect(() => {
-    const ensureDefault = async () => {
-      if (!supabase || !user) return
-      if (addresses.length === 0) return
-      const hasDefault = addresses.some((entry) => entry.is_default)
-      if (!hasDefault) {
-        try {
-          await ensureSession()
-          await supabase
-            .from("addresses")
-            .update({ is_default: true })
-            .eq("id", addresses[0].id)
-            .eq("user_id", user.id)
-          refreshAddresses()
-        } catch (err) {
-          console.error("Ensure default address error:", err)
-        }
-      }
-    }
-    ensureDefault()
-  }, [addresses, refreshAddresses, supabase, user])
-
-  useEffect(() => {
-    if (addresses.length === 0) setAddressForm((prev) => ({ ...prev, isDefault: true }))
-  }, [addresses.length])
-
-  const recentOrders = (Array.isArray(orders) ? orders : [])
-    .slice(0, 3)
-    .map((order) => ({
-      id: order.id,
-      date: order.date || order.placed_at || order.created_at || "",
-      total:
-        typeof order.total === "number"
-          ? `$${order.total.toFixed(2)}`
-          : order.total || "$0.00",
-      status: order.status || "Processing",
-    }))
-
-  const handleAddressInputChange = (field, value) => {
-    setAddressForm((prev) => ({ ...prev, [field]: value }))
-  }
 
   const handleAddAddress = async (event) => {
     event.preventDefault()
@@ -231,7 +190,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated, orders =
       return setAddressFormError("Label and full address are required.")
     }
 
-    const shouldBeDefault = addressForm.isDefault || addresses.every((entry) => !entry.is_default)
+    const shouldBeDefault = addressForm.isDefault || addresses.length === 0
 
     setSavingAddress(true)
     try {
@@ -306,18 +265,44 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated, orders =
     }
   }
 
-  const isAddressActionPending = (addressId, type) =>
-    addressActionState.id === addressId && addressActionState.type === type
+  const recentOrders = useMemo(() => {
+    return (Array.isArray(orders) ? orders : [])
+      .slice(0, 3)
+      .map((order) => ({
+        id: order.id,
+        date: order.date || order.placed_at || order.created_at || "",
+        total:
+          typeof order.total === "number"
+            ? `$${order.total.toFixed(2)}`
+            : order.total || "$0.00",
+        status: order.status || "Processing",
+      }))
+  }, [orders])
+
+  const currentPoints = profile?.membership_points || 0
+  const currentTier = useMemo(() => getTierByPoints(currentPoints), [currentPoints])
+  const nextTier = useMemo(() => {
+    const currentIndex = tiers.findIndex(t => t.id === currentTier.id)
+    return tiers[currentIndex + 1] || null
+  }, [currentTier])
+
+  const progressPct = useMemo(() => {
+    if (!nextTier) return 100
+    const range = nextTier.minPoints - currentTier.minPoints
+    const progress = currentPoints - currentTier.minPoints
+    return Math.min(100, Math.max(0, Math.round((progress / range) * 100)))
+  }, [currentPoints, currentTier, nextTier])
 
   if (!user) {
     return (
-      <section className="page-panel profile-empty">
-        <h2>Profile</h2>
-        <p>You need to log in to manage your profile.</p>
-        <button className="primary-btn zoom-on-hover" onClick={() => onNavigate?.("/login")}>
+      <div className="profile-container" style={{ textAlign: 'center', padding: '100px 20px' }}>
+        <FiUser style={{ fontSize: '4rem', color: '#cbd5e1', marginBottom: '24px' }} />
+        <h2>Session Required</h2>
+        <p className="muted">Please log in to view and manage your profile.</p>
+        <button className="primary-btn" style={{ marginTop: '32px' }} onClick={() => onNavigate?.("/login")}>
           Go to login
         </button>
-      </section>
+      </div>
     )
   }
 
@@ -325,22 +310,19 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated, orders =
     <div className="profile-card">
       <div className="profile-card-head">
         <div>
-          <p className="eyebrow">Account overview</p>
-          <h3>Personal information</h3>
-          <p className="muted">
-            Update your name and contact details. Email is used for sign-in and can be changed from
-            the security portal.
-          </p>
+          <p className="eyebrow">Personal Info</p>
+          <h3>Profile details</h3>
+          <p className="muted">Manage your identity and contact information across Kaki.</p>
         </div>
-        <div className="profile-avatar">
-          <span>{(fullName || user.email || "?").charAt(0).toUpperCase()}</span>
+        <div className="profile-avatar-display">
+          {/* Handled by CSS user-icon for consistency */}
         </div>
       </div>
 
       <form className="profile-form" onSubmit={handleUpdate}>
         <div className="form-row">
           <label>
-            Full name
+            <div className="label-with-icon"><FiUser /> Full name</div>
             <input
               type="text"
               placeholder="Your name"
@@ -349,7 +331,7 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated, orders =
             />
           </label>
           <label>
-            Mobile number
+            <div className="label-with-icon"><FiPhone /> Mobile number</div>
             <input
               type="tel"
               placeholder="+65 1234 5678"
@@ -361,185 +343,182 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated, orders =
 
         <div className="form-row">
           <label>
-            Email (sign-in)
+            <div className="label-with-icon"><FiMail /> Email</div>
             <input type="email" value={user.email} disabled />
           </label>
           <label>
-            Preferred language
-            <input type="text" value="English" disabled />
+            <div className="label-with-icon"><FiArrowRight /> Registered</div>
+            <input type="text" value={new Date(user.created_at).toLocaleDateString()} disabled />
           </label>
         </div>
 
-        {status && <p className="auth-status success">{status}</p>}
+        {status && <p className="auth-status success"><FiCheckCircle /> {status}</p>}
         {error && <p className="auth-status error">{error}</p>}
 
         <div className="profile-actions">
-          <button className="primary-btn zoom-on-hover" type="submit" disabled={loading}>
-            {loading ? "Saving..." : "Save changes"}
-          </button>
-          <button className="ghost-btn zoom-on-hover" type="button" onClick={() => onNavigate?.("/")}>
-            Back to home
+          <button className="primary-btn" type="submit" disabled={loading}>
+            {loading ? "Saving changes..." : "Save changes"}
           </button>
         </div>
       </form>
     </div>
   )
 
-  const renderMembershipTab = () => {
-    const progressPct = Math.min(
-      100,
-      Math.round((membershipSnapshot.points / membershipSnapshot.nextRewardAt) * 100),
-    )
-    return (
-      <div className="profile-card">
-        <div className="profile-card-head">
-          <div>
-            <p className="eyebrow">Rewards</p>
-            <h3>Membership points</h3>
-            <p className="muted">
-              Stay active to unlock perks. Every dollar spent adds more credit to your FreshMart
-              wallet.
-            </p>
-          </div>
-          <div className="tier-chip">{membershipSnapshot.tier} tier</div>
+  const renderMembershipTab = () => (
+    <div className="profile-card membership-view">
+      <div className="profile-card-head">
+        <div>
+          <p className="eyebrow">Kaki Rewards</p>
+          <h3>Points & status</h3>
+          <p className="muted">Earn 1 point for every $1 spent. Unlock exclusive savings and perks as you level up.</p>
         </div>
-
-        <div className="membership-summary">
-          <div className="membership-stat">
-            <span className="label">Current points</span>
-            <strong>{membershipSnapshot.points.toLocaleString()}</strong>
-          </div>
-          <div className="membership-stat">
-            <span className="label">Next reward</span>
-            <strong>{membershipSnapshot.nextRewardAt.toLocaleString()} pts</strong>
-          </div>
-        </div>
-
-        <div className="progress-wrap">
-          <div className="progress-bar">
-            <span style={{ width: `${progressPct}%` }} />
-          </div>
-          <p className="muted">{progressPct}% of the next reward unlocked.</p>
-        </div>
-
-        <div className="membership-perks">
-          <p className="label">Benefits</p>
-          <ul>
-            {membershipSnapshot.benefits.map((benefit) => (
-              <li key={benefit}>{benefit}</li>
-            ))}
-          </ul>
+        <div className="tier-badge" style={{ background: currentTier.accent }}>
+          {currentTier.label}
         </div>
       </div>
-    )
-  }
+
+      <div className="membership-stats-grid">
+        <div className="membership-stat-card">
+          <div className="stat-icon"><FiZap /></div>
+          <div className="stat-content">
+            <span className="stat-label">Wallet Balance</span>
+            <span className="stat-value">{currentPoints.toLocaleString()} pts</span>
+          </div>
+        </div>
+        <div className="membership-stat-card">
+          <div className="stat-icon"><FiAward /></div>
+          <div className="stat-content">
+            <span className="stat-label">Current Tier</span>
+            <span className="stat-value">{currentTier.label}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="tier-progress-section">
+        <div className="progress-header">
+          <span>{nextTier ? `Progress to ${nextTier.label}` : 'Maximum level reached'}</span>
+          <span>{progressPct}%</span>
+        </div>
+        <div className="progress-track">
+          <div className="progress-fill" style={{ width: `${progressPct}%`, background: currentTier.accent }}></div>
+        </div>
+        {nextTier && (
+          <p className="progress-note">
+            Earn another <strong>{(nextTier.minPoints - currentPoints).toLocaleString()} points</strong> to reach the {nextTier.label} tier.
+          </p>
+        )}
+      </div>
+
+      <div className="benefits-section">
+        <h4 className="section-title">Active benefits</h4>
+        <div className="perks-grid">
+          {currentTier.perks.map((perk, i) => (
+            <div key={i} className="perk-item">
+              <FiCheckCircle className="perk-icon" />
+              <span>{perk}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 
   const renderAddressesTab = () => (
     <div className="profile-card">
       <div className="profile-card-head">
         <div>
-          <p className="eyebrow">Logistics</p>
-          <h3>Saved delivery address</h3>
-          <p className="muted">
-            Keep multiple drop-off locations handy for faster checkout. Your default address is used
-            for express slots.
-          </p>
+          <p className="eyebrow">Shipping</p>
+          <h3>Delivery addresses</h3>
+          <p className="muted">Saved locations for a smoother checkout experience.</p>
         </div>
+        {/* Scroll action button */}
       </div>
 
-      {addressListError && <p className="auth-status error">{addressListError}</p>}
-      {addressesLoading ? (
-        <p className="muted">Loading addresses...</p>
-      ) : (
-        <div className="address-list">
-          {addresses.map((entry) => (
-            <div key={entry.id} className="address-tile">
-              <div>
-                <p className="tile-title">
-                  {entry.label} {entry.is_default && <span className="pill-chip ghost">Default</span>}
-                </p>
-                <p className="tile-body">{entry.details}</p>
-                {entry.instructions && <p className="tile-note">{entry.instructions}</p>}
+      <div className="address-grid">
+        {addresses.map((entry) => (
+          <div key={entry.id} className={`address-card ${entry.is_default ? 'default' : ''}`}>
+            <div className="address-card-body">
+              <div className="address-header">
+                <strong>{entry.label}</strong>
+                {entry.is_default && <span className="default-pill">Default</span>}
               </div>
-
-              <div className="address-row-actions">
-                {!entry.is_default && (
-                  <button
-                    className="ghost-btn"
-                    type="button"
-                    onClick={() => handleMakeDefault(entry.id)}
-                    disabled={isAddressActionPending(entry.id, "default")}
-                  >
-                    {isAddressActionPending(entry.id, "default") ? "Setting..." : "Make default"}
-                  </button>
-                )}
-                <button
-                  className="ghost-btn danger"
-                  type="button"
-                  onClick={() => handleDeleteAddress(entry.id)}
-                  disabled={isAddressActionPending(entry.id, "delete")}
-                >
-                  {isAddressActionPending(entry.id, "delete") ? "Removing..." : "Remove"}
-                </button>
-              </div>
+              <p className="address-text">{entry.details}</p>
+              {entry.instructions && (
+                <span className="address-instructions">
+                  {entry.instructions}
+                </span>
+              )}
             </div>
-          ))}
+            <div className="address-card-footer">
+              {!entry.is_default && (
+                <button
+                  className="action-btn-text"
+                  onClick={() => handleMakeDefault(entry.id)}
+                >
+                  Set as default
+                </button>
+              )}
+              <button
+                className="action-btn-text danger"
+                onClick={() => handleDeleteAddress(entry.id)}
+              >
+                <FiTrash2 /> Remove
+              </button>
+            </div>
+          </div>
+        ))}
+        {addresses.length === 0 && <p className="muted">No addresses saved yet.</p>}
+      </div>
 
-          {addresses.length === 0 && (
-            <p className="muted">No saved addresses yet. Add one to speed up checkout.</p>
-          )}
-        </div>
-      )}
+      <div className="profile-card-divider" style={{ margin: '40px 0', borderTop: '1px solid var(--profile-border)' }} />
 
-      <form className="address-form" onSubmit={handleAddAddress}>
-        <h4>Add new address</h4>
-        <div className="address-field-row">
+      <form id="new-address-form" className="profile-form" onSubmit={handleAddAddress}>
+        <h4 className="section-title">Add a new address</h4>
+        <div className="form-row">
           <label>
-            Label
+            <div className="label-with-icon"><FiMapPin /> Label (e.g. Home)</div>
             <input
               type="text"
-              placeholder="Home, Office, Parents"
               value={addressForm.label}
-              onChange={(event) => handleAddressInputChange("label", event.target.value)}
+              placeholder="Home, Office, etc."
+              onChange={(e) => setAddressForm({ ...addressForm, label: e.target.value })}
             />
           </label>
-
-          <label className="address-checkbox">
+          <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '10px', height: '100%', paddingTop: '32px' }}>
             <input
               type="checkbox"
+              style={{ width: '20px', height: '20px' }}
               checked={addressForm.isDefault}
-              onChange={(event) => handleAddressInputChange("isDefault", event.target.checked)}
+              onChange={(e) => setAddressForm({ ...addressForm, isDefault: e.target.checked })}
             />
-            Set as default
+            <span style={{ fontWeight: 700, color: '#334155' }}>Set as default</span>
           </label>
         </div>
-
-        <label>
-          Full address
-          <textarea
-            rows={3}
-            placeholder="Street, unit, postal code"
-            value={addressForm.details}
-            onChange={(event) => handleAddressInputChange("details", event.target.value)}
-          />
-        </label>
-
-        <label>
-          Delivery instructions (optional)
-          <textarea
-            rows={2}
-            placeholder="Drop with concierge, call on arrival..."
-            value={addressForm.instructions}
-            onChange={(event) => handleAddressInputChange("instructions", event.target.value)}
-          />
-        </label>
-
-        {addressFormStatus && <p className="auth-status success">{addressFormStatus}</p>}
+        <div className="form-row">
+          <label>
+            <div className="label-with-icon"><FiMapPin /> Full Address</div>
+            <textarea
+              rows={2}
+              value={addressForm.details}
+              placeholder="Street name, unit number, postal code"
+              onChange={(e) => setAddressForm({ ...addressForm, details: e.target.value })}
+            />
+          </label>
+          <label>
+            <div className="label-with-icon"><FiPlus /> Delivery Notes</div>
+            <textarea
+              rows={2}
+              value={addressForm.instructions}
+              placeholder="Drop with guard, call on arrival, etc."
+              onChange={(e) => setAddressForm({ ...addressForm, instructions: e.target.value })}
+            />
+          </label>
+        </div>
         {addressFormError && <p className="auth-status error">{addressFormError}</p>}
-
-        <div className="address-actions">
-          <button className="primary-btn zoom-on-hover" type="submit" disabled={savingAddress}>
-            {savingAddress ? "Saving..." : "Save address"}
+        {addressFormStatus && <p className="auth-status success">{addressFormStatus}</p>}
+        <div className="profile-actions">
+          <button className="primary-btn" type="submit" disabled={savingAddress}>
+            {savingAddress ? "Saving..." : "Save Address"}
           </button>
         </div>
       </form>
@@ -551,27 +530,30 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated, orders =
       <div className="profile-card-head">
         <div>
           <p className="eyebrow">History</p>
-          <h3>Recent orders</h3>
-          <p className="muted">Track your latest deliveries and download receipts.</p>
+          <h3>Recent activity</h3>
+          <p className="muted">Track your most recent orders and their status.</p>
         </div>
         <button className="ghost-btn" onClick={() => onNavigate?.("/history")}>
-          View all orders
+          Full history <FiArrowRight />
         </button>
       </div>
 
-      <div className="orders-list">
+      <div className="recent-orders-list">
         {recentOrders.length === 0 ? (
-          <p className="muted">You don't have any orders yet.</p>
+          <div className="empty-orders">
+            <FiPackage style={{ fontSize: '3rem', color: '#cbd5e1', marginBottom: '16px' }} />
+            <p className="muted">You haven't placed any orders yet.</p>
+          </div>
         ) : (
           recentOrders.map((order) => (
-            <div key={order.id} className="order-row">
-              <div>
-                <p className="tile-title">{order.id}</p>
-                <p className="tile-note">{order.date}</p>
+            <div key={order.id} className="order-item-compact">
+              <div className="order-info">
+                <span className="order-id">#{order.id.slice(0, 8)}</span>
+                <span className="order-date"><FiClock /> {new Date(order.date).toLocaleDateString()}</span>
               </div>
-              <div className="order-meta">
-                <span className="order-total">{order.total}</span>
-                <span className="status-pill">{order.status}</span>
+              <div className="order-status-group">
+                <span className="order-price">{order.total}</span>
+                <span className={`status-tag ${order.status.toLowerCase()}`}>{order.status}</span>
               </div>
             </div>
           ))
@@ -594,39 +576,48 @@ function ProfilePage({ onNavigate, user, profileName, onProfileUpdated, orders =
     }
   }
 
-  return (
-    <section className="profile-page-panel">
-      <div className="profile-header">
-        <div>
-          <p className="eyebrow">User profile management</p>
-          <h2>Welcome back, {fullName || user.email}</h2>
-          <p className="muted">
-            Manage everything about your FreshMart account from one place - contact details,
-            membership, addresses, and orders.
-          </p>
-        </div>
-        <button className="ghost-btn" type="button" onClick={() => onNavigate?.("/")}>
-          Return to shopping
-        </button>
-      </div>
+  const activeTabLabel = navTabs.find(t => t.id === activeTab)?.label || "Profile"
 
-      <div className="profile-dashboard">
-        <aside className="profile-sidebar">
-          <ul>
+  return (
+    <section className="profile-container">
+      <div className="profile-layout">
+        <aside className="profile-nav">
+          <div className="user-summary">
+            <div className="user-icon">
+              {(fullName || user.email || "?").charAt(0).toUpperCase()}
+            </div>
+            <div className="user-text">
+              <h4>{fullName || "User"}</h4>
+              <p>{user.email}</p>
+            </div>
+          </div>
+          <nav>
             {navTabs.map((tab) => (
-              <li key={tab.id}>
-                <button
-                  type="button"
-                  className={`sidebar-btn ${activeTab === tab.id ? "active" : ""}`}
-                  onClick={() => setActiveTab(tab.id)}
-                >
-                  {tab.label}
-                </button>
-              </li>
+              <button
+                key={tab.id}
+                className={`nav-item ${activeTab === tab.id ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
             ))}
-          </ul>
+          </nav>
+          <div className="nav-footer">
+            <button className="nav-item signout" onClick={onLogout}>
+              <FiArrowRight />
+              <span>Logout session</span>
+            </button>
+          </div>
         </aside>
-        <div className="profile-content">{renderContent()}</div>
+
+        <main className="profile-main">
+          <header className="main-header">
+            <h2>{activeTabLabel}</h2>
+            <p>Manage and track your FreshMart account profile.</p>
+          </header>
+          {renderContent()}
+        </main>
       </div>
     </section>
   )
