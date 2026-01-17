@@ -514,16 +514,50 @@ function App() {
       setOrders([])
       return
     }
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*, order_items(*)")
-      .eq("profile_id", sessionUser.id)
-      .order("placed_at", { ascending: false })
-    if (error) {
-      console.warn("Unable to load orders", error)
-      return
+
+    console.log("[App] loadUserOrders: Fetching for UID", sessionUser.id)
+
+    try {
+      const { data, error } = await supabase
+        .from("orders")
+        .select(`
+          id,
+          profile_id,
+          total,
+          status,
+          placed_at,
+          order_items (
+            id,
+            order_id,
+            product_id,
+            product_slug,
+            product_name,
+            unit_price,
+            quantity
+          )
+        `)
+        .eq("profile_id", sessionUser.id)
+        .order("placed_at", { ascending: false })
+
+      if (error) {
+        console.error("[App] loadUserOrders Query Error:", error)
+        setOrders([])
+        return
+      }
+
+      console.log("[App] loadUserOrders Raw Result:", data)
+
+      const mapped = (data || []).map((order) => ({
+        ...order,
+        items: order.order_items || [],
+        date: order.placed_at || new Date().toISOString(),
+      }))
+
+      setOrders(mapped)
+    } catch (err) {
+      console.error("[App] loadUserOrders Unexpected Error:", err)
+      setOrders([])
     }
-    setOrders(data ?? [])
   }, [sessionUser])
 
   useEffect(() => {
@@ -531,8 +565,10 @@ function App() {
   }, [loadCatalog])
 
   useEffect(() => {
-    loadUserOrders()
-  }, [loadUserOrders])
+    if (sessionUser) {
+      loadUserOrders()
+    }
+  }, [sessionUser, loadUserOrders])
 
   // ✅ FIX: redirect away from login once authenticated
   useEffect(() => {

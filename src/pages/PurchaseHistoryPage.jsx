@@ -1,9 +1,36 @@
 // component: PurchaseHistoryPage
-// component: PurchaseHistoryPage
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import "./Pages.css"
 
 function PurchaseHistoryPage({ user, onNavigate, orders = [] }) {
+  // ✅ Hooks must be called unconditionally (before any return)
+  const [expandedOrderId, setExpandedOrderId] = useState(null)
+
+  const hasOrders = useMemo(() => (orders?.length || 0) > 0, [orders])
+
+  const formatOrderDate = (value) => {
+    if (!value) return "—"
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return String(value)
+    return parsed.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })
+  }
+
+  const toggleExpansion = (id) => {
+    setExpandedOrderId((prev) => (prev === id ? null : id))
+  }
+
+  const renderOrderItems = (items) => {
+    if (!Array.isArray(items) || items.length === 0) return "No items recorded."
+    return items
+      .map((item) => `${item.quantity}x ${item.product_name || item.name || "Unknown item"}`)
+      .join(", ")
+  }
+
+  // ✅ Safe early return after hooks
   if (!user) {
     return (
       <section className="page-panel">
@@ -17,40 +44,13 @@ function PurchaseHistoryPage({ user, onNavigate, orders = [] }) {
     )
   }
 
-  const hasOrders = orders.length > 0
-  const [expandedOrderId, setExpandedOrderId] = useState(null)
-
-  const formatOrderDate = (value) => {
-    if (!value) return "—"
-    const parsed = new Date(value)
-    if (Number.isNaN(parsed.getTime())) return value
-    return parsed.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    })
-  }
-
-  const toggleExpansion = (id) => {
-    setExpandedOrderId((prev) => (prev === id ? null : id))
-  }
-
-  const renderOrderItems = (items) => {
-    if (!items || items.length === 0) return "No items recorded."
-    return items
-      .map((item) => `${item.quantity}x ${item.product_name || item.name}`)
-      .join(", ")
-  }
-
   return (
     <section className="page-panel">
       <div className="board-top">
         <div>
           <p className="dash-label">Purchase history</p>
           <strong>Your past orders</strong>
-          <p className="guest-detail">
-            Quickly reorder favorites or request help with an existing order.
-          </p>
+          <p className="guest-detail">Quickly reorder favorites or request help with an existing order.</p>
         </div>
       </div>
 
@@ -71,6 +71,7 @@ function PurchaseHistoryPage({ user, onNavigate, orders = [] }) {
             <span>Actions</span>
             <span>Details</span>
           </div>
+
           <div className="product-rows">
             {orders.map((order, index) => {
               const orderItems = order.order_items ?? order.items ?? []
@@ -78,14 +79,15 @@ function PurchaseHistoryPage({ user, onNavigate, orders = [] }) {
               const isExpanded = expandedOrderId === order.id
 
               return (
-                <div key={order.id}>
+                <div key={order.id || `${index}-${orderDate}`}>
                   <div className="product-row">
                     <span>Order #{orders.length - index}</span>
                     <span>{formatOrderDate(orderDate)}</span>
-                    <span className="price-chip">${order.total}</span>
+                    <span className="price-chip">${Number(order.total || 0).toFixed(2)}</span>
                     <span className={order.status === "Delivered" ? "status success" : "status warn"}>
-                      {order.status}
+                      {order.status || "Processing"}
                     </span>
+
                     <div className="action-badges">
                       <button className="badge-btn primary" type="button" onClick={() => onNavigate?.("/")}>
                         Reorder
@@ -93,14 +95,12 @@ function PurchaseHistoryPage({ user, onNavigate, orders = [] }) {
                       <button
                         className="badge-btn danger"
                         type="button"
-                        onClick={() => {
-                          const helpPath = order.id ? `/help/${order.id}` : "/help"
-                          onNavigate?.(helpPath)
-                        }}
+                        onClick={() => onNavigate?.(order.id ? `/help/${order.id}` : "/help")}
                       >
                         Help
                       </button>
                     </div>
+
                     <span>
                       <button
                         className="primary-btn zoom-on-hover summary-toggle"
@@ -111,6 +111,7 @@ function PurchaseHistoryPage({ user, onNavigate, orders = [] }) {
                       </button>
                     </span>
                   </div>
+
                   {isExpanded && (
                     <div className="order-detail-row">
                       <p>{renderOrderItems(orderItems)}</p>
