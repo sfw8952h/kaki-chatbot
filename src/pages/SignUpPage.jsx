@@ -279,11 +279,17 @@ function SignUpPage({ onNavigate }) {
 
         {/* CAPTCHA */}
         <div className="captcha-row">
-          <ReCAPTCHA
-            ref={recaptchaRef}
-            sitekey={SITE_KEY || ""}
-            onChange={(token) => setCaptchaToken(token || "")}
-          />
+          {SITE_KEY ? (
+            <ReCAPTCHA
+              ref={recaptchaRef}
+              sitekey={SITE_KEY}
+              onChange={(token) => setCaptchaToken(token || "")}
+            />
+          ) : (
+            <div className="field-error">
+              Configuration Error: Missing ReCAPTCHA Site Key.
+            </div>
+          )}
         </div>
 
         {status && <p className="auth-status success">{status}</p>}

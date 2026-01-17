@@ -755,15 +755,13 @@ function App() {
           .replace(/(^-|-$)/g, "")
         : `store-${Date.now()}`)
     const payload = {
-      id: product.id,
-      name: product.name,
-      slug,
-      description: product.description,
-      category: product.category,
-      image: product.image,
-      price: toPriceNumber(product.price),
-      stock: Number.isFinite(Number(product.stock)) ? Number(product.stock) : 12, // ✅ default so it shows
-      status: product.status || (Number(product.stock) <= 0 ? "pending" : "approved"),
+      id,
+      name: store.name,
+      address: store.address,
+      phone: store.phone,
+      email: store.email,
+      baseHours: store.baseHours,
+      specialHours: store.specialHours,
     }
 
     upsertStoreLocally(payload)
@@ -907,7 +905,7 @@ function App() {
     const isAdmin = role === "admin"
     const isSupplier = role === "supplier"
 
-    
+
     if (currentPath === "/supplier-login")
       return <SupplierLoginPage onNavigate={navigate} />
     if (currentPath === "/signup") return <SignUpPage onNavigate={navigate} />
