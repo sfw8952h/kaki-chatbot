@@ -70,17 +70,17 @@ function SupplierLoginPage({ onNavigate }) {
         throw new Error("No profile found for this account. Please sign up first.")
       }
 
-      if (profile.role !== "supplier" && profile.role !== "admin") {
-        // Not a supplier, but they are logged in. Let's warn them.
-        onNavigate?.("/login") // redirect to member login
-        return
+      if (profile.role !== "supplier") {
+        // Strict separation: if not a supplier (even if admin), force them to use the main login
+        await supabase.auth.signOut()
+        throw new Error("This account isn't a supplier. Please use the main login page.")
       }
 
       // ✅ save email only if rememberMe
       persistRememberEmail(rememberMe, cleanEmail)
 
       setStatus("Login successful. Redirecting...")
-      onNavigate?.("/supplier/dashboard")
+      onNavigate?.("/supplier")
     } catch (err) {
       setError(err?.message || "Unable to login right now.")
     } finally {

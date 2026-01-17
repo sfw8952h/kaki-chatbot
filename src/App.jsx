@@ -175,6 +175,55 @@ function App() {
     }
   }, [])
 
+  // Load catalog from database
+  useEffect(() => {
+    if (!supabase) {
+      // Fallback to seed data if no database
+      setCatalog(seedProducts)
+      setCatalogSource("seed")
+      return
+    }
+
+    const loadCatalog = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("products")
+          .select("*")
+          .eq("status", "approved")
+          .order("created_at", { ascending: false })
+
+        if (error) throw error
+
+        // Map database products to frontend format
+        const mapped = (data || []).map(p => ({
+          id: p.id, // ✅ Real UUID from database
+          slug: p.slug,
+          name: p.name,
+          desc: p.description || "",
+          price: String(p.price || 0),
+          image: p.image || "https://via.placeholder.com/420x520.png?text=Product",
+          category: p.category || "Uncategorized",
+          onlineStock: p.stock || 0,
+          badge: p.stock > 0 ? "In stock" : "Out of stock",
+          brand: "Kaki",
+          tag: p.category || "",
+          icon: "🛒",
+          accent: "linear-gradient(135deg, #fde68a, #fb923c)",
+          storeAvailability: [],
+        }))
+
+        setCatalog(mapped)
+        setCatalogSource("database")
+      } catch (err) {
+        console.warn("Failed to load catalog from database, using seed data:", err)
+        setCatalog(seedProducts)
+        setCatalogSource("seed")
+      }
+    }
+
+    loadCatalog()
+  }, [])
+
   const navigate = (path) => {
     const appPath = path.startsWith("/") ? path : `/${path}`
     const targetPath = appendBase(appPath)

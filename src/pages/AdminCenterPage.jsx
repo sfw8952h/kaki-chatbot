@@ -90,9 +90,11 @@ function AdminCenterPage({
   storeLocations = [],
   onStoreUpsert,
   promotions = [],
-  onPromotionsUpdate = () => {},
-  onNavigate = () => {},
+  onPromotionsUpdate = () => { },
+  onNavigate = () => { },
 }) {
+  const [dbProposals, setDbProposals] = useState([])
+
   const supabase = useMemo(() => {
     try {
       return getSupabaseClient()
@@ -102,9 +104,40 @@ function AdminCenterPage({
     }
   }, [])
 
+  const [activeTab, setActiveTab] = useState("dashboard")
+
+  // Fetch pending proposals from DB
+  useEffect(() => {
+    let cancelled = false
+    const fetchProposals = async () => {
+      if (activeTab !== "inventory" || !supabase) return
+
+      try {
+        const { data, error } = await supabase
+          .from("products")
+          .select("*")
+          .eq("status", "pending")
+          .order("created_at", { ascending: false })
+
+        if (error) throw error
+        if (!cancelled) setDbProposals(data || [])
+      } catch (err) {
+        console.warn("Error fetching proposals:", err)
+      }
+    }
+    fetchProposals()
+    return () => { cancelled = true }
+  }, [activeTab, supabase])
+
+  const allProposals = useMemo(() => {
+    // combine props proposals (if any) with db proposals
+    const dbIds = new Set((dbProposals || []).map(p => p.id))
+    const legacy = (proposals || []).filter(p => p && p.id && !dbIds.has(p.id))
+    return [...(dbProposals || []), ...legacy]
+  }, [proposals, dbProposals])
+
   const [products, setProducts] = useState(initialProducts)
   const [editingId, setEditingId] = useState(null)
-  const [activeTab, setActiveTab] = useState("dashboard")
 
   // product form
   const [formData, setFormData] = useState({
@@ -177,8 +210,8 @@ function AdminCenterPage({
     const avgPrice =
       total > 0
         ? (
-            products.reduce((sum, p) => sum + (Number.isFinite(p.price) ? p.price : 0), 0) / total
-          ).toFixed(2)
+          products.reduce((sum, p) => sum + (Number.isFinite(p.price) ? p.price : 0), 0) / total
+        ).toFixed(2)
         : "0.00"
     const stockUnits = products.reduce((sum, p) => sum + (p.stock || 0), 0)
     return { total, outCount, lowCount, avgPrice, stockUnits }
@@ -337,7 +370,7 @@ function AdminCenterPage({
     setActiveTab("add")
   }
 
-  // delete (db + ui) ✅ fully fixed
+  // delete (db + ui)
   const handleDelete = async (id) => {
     setFlash("")
     setProductStatus("")
@@ -408,9 +441,46 @@ function AdminCenterPage({
 
   // approve/reject proposal
   const approveProposal = async (proposal) => {
-    setProducts((prev) => [
-      {
-        id: `local-${Date.now()}`,
+    // Optimistic Update
+    setDbProposals(prev => prev.filter(p => p.id !== proposal.id))
+
+    // Legacy / Local handler
+    onProposalDecision?.(proposal.id, "approved")
+
+    // DB Update
+    if (supabase && isUuid(proposal.id)) {
+      try {
+        await supabase
+          .from("products")
+          .update({ status: "approved" })
+          .eq("id", proposal.id)
+
+        // Also refresh main product list if needed
+        setProducts(prev => {
+          const exists = prev.find(p => p.id === proposal.id)
+          if (exists) return prev.map(p => p.id === proposal.id ? { ...p, status: "approved", outOfStock: false } : p)
+          return [{ ...proposal, status: "approved", outOfStock: false }, ...prev]
+        })
+      } catch (err) {
+        console.error("Failed to approve in DB:", err)
+      }
+    } else {
+      // Legacy Fallback
+      setProducts((prev) => [
+        {
+          id: `local-${Date.now()}`,
+          name: proposal.name,
+          price: proposal.price,
+          description: proposal.description || "",
+          category: proposal.category,
+          image: proposal.image,
+          stock: proposal.stock,
+          outOfStock: proposal.stock === 0,
+          createdAt: proposal.createdAt || new Date().toISOString().slice(0, 10),
+        },
+        ...prev,
+      ])
+      onProductUpsert?.({
         name: proposal.name,
         price: proposal.price,
         description: proposal.description || "",
@@ -419,24 +489,22 @@ function AdminCenterPage({
         stock: proposal.stock,
         outOfStock: proposal.stock === 0,
         createdAt: proposal.createdAt || new Date().toISOString().slice(0, 10),
-      },
-      ...prev,
-    ])
-    onProposalDecision?.(proposal.id, "approved")
-    onProductUpsert?.({
-      name: proposal.name,
-      price: proposal.price,
-      description: proposal.description || "",
-      category: proposal.category,
-      image: proposal.image,
-      stock: proposal.stock,
-      outOfStock: proposal.stock === 0,
-      createdAt: proposal.createdAt || new Date().toISOString().slice(0, 10),
-    })
+      })
+    }
   }
 
-  const rejectProposal = (proposal) => {
+  const rejectProposal = async (proposal) => {
+    // Optimistic
+    setDbProposals(prev => prev.filter(p => p.id !== proposal.id))
     onProposalDecision?.(proposal.id, "rejected")
+
+    if (supabase && isUuid(proposal.id)) {
+      try {
+        await supabase.from("products").update({ status: "rejected" }).eq("id", proposal.id)
+      } catch (err) {
+        console.error("Failed to reject in DB:", err)
+      }
+    }
   }
 
   // refresh drafts when props change
@@ -531,7 +599,7 @@ function AdminCenterPage({
     }
   }
 
-  // load complaints/feedback when support tab opens ✅ fixed (was checking "feedback")
+  // load complaints/feedback when support tab opens
   useEffect(() => {
     const loadFeedback = async () => {
       try {
@@ -591,18 +659,18 @@ function AdminCenterPage({
       ? { eyebrow: "Products", title: "Products", detail: "Manage listings and visibility." }
       : activeTab === "inventory"
         ? { eyebrow: "Inventory", title: "Inventory", detail: "Track stock and supplier approvals." }
-      : activeTab === "promotions"
-        ? {
+        : activeTab === "promotions"
+          ? {
             eyebrow: "Promotions",
             title: "Hero carousel",
             detail: "Curate the deals that show up in the homepage slider.",
           }
-        : activeTab === "stores"
+          : activeTab === "stores"
             ? {
-                eyebrow: "Store network",
-                title: "Store hours",
-                detail: "Edit base hours and holiday overrides for each location.",
-              }
+              eyebrow: "Store network",
+              title: "Store hours",
+              detail: "Edit base hours and holiday overrides for each location.",
+            }
             : activeTab === "support"
               ? { eyebrow: "Support", title: "Feedback", detail: "Review customer complaints." }
               : { eyebrow: "Dashboard", title: "Overview", detail: "Metrics and health of the store." }
@@ -899,9 +967,9 @@ function AdminCenterPage({
           </article>
         )}
 
-          {activeTab === "inventory" && (
-            <>
-              <article className="dash-card">
+        {activeTab === "inventory" && (
+          <>
+            <article className="dash-card">
               <div className="dash-card-head">
                 <div>
                   <p className="dash-label">Supplier proposals</p>
@@ -909,7 +977,7 @@ function AdminCenterPage({
                 </div>
               </div>
 
-              {proposals?.length === 0 && <p>No proposals submitted yet.</p>}
+              {allProposals?.length === 0 && <p>No proposals submitted yet.</p>}
 
               <div className="dash-table">
                 <div className="dash-table-head">
@@ -921,7 +989,7 @@ function AdminCenterPage({
                   <span>Actions</span>
                 </div>
                 <div className="dash-table-body">
-                  {proposals?.map((p) => (
+                  {allProposals?.map((p) => (
                     <div key={p.id} className="dash-table-row">
                       <span>{p.name}</span>
                       <span>{p.category || "Uncategorized"}</span>
@@ -945,6 +1013,7 @@ function AdminCenterPage({
                           className="ghost-btn"
                           disabled={p.status === "approved"}
                           onClick={() => approveProposal(p)}
+                          type="button"
                         >
                           Approve
                         </button>
@@ -952,6 +1021,7 @@ function AdminCenterPage({
                           className="ghost-btn danger"
                           disabled={p.status === "rejected"}
                           onClick={() => rejectProposal(p)}
+                          type="button"
                         >
                           Reject
                         </button>
@@ -976,115 +1046,115 @@ function AdminCenterPage({
                   </li>
                 ))}
               </ul>
-              </article>
-            </>
-          )}
+            </article>
+          </>
+        )}
 
-          {activeTab === "promotions" && (
-            <article className="dash-card promo-card">
-              <div className="dash-card-head">
-                <div>
-                  <p className="dash-label">Promotions</p>
-                  <strong>Hero carousel slides</strong>
-                  <p className="muted small-note">Arrange the deals shown at the top of the catalog.</p>
-                </div>
+        {activeTab === "promotions" && (
+          <article className="dash-card promo-card">
+            <div className="dash-card-head">
+              <div>
+                <p className="dash-label">Promotions</p>
+                <strong>Hero carousel slides</strong>
+                <p className="muted small-note">Arrange the deals shown at the top of the catalog.</p>
               </div>
+            </div>
 
-              <div className="promo-admin-grid">
-                {promoDrafts.map((promo) => (
-                  <div key={promo.id} className="promo-admin-card">
-                    <p className="promo-slide-badge">{promo.badge}</p>
-                    <h4>{promo.headline}</h4>
-                    <p className="muted">{promo.detail}</p>
-                    <span className="promo-slug">{promo.slug}</span>
-                    <div className="promo-admin-actions">
-                      <button
-                        className="badge-btn primary"
-                        type="button"
-                        onClick={() => handlePromoEdit(promo)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="badge-btn danger"
-                        type="button"
-                        onClick={() => handlePromoDelete(promo.id)}
-                      >
-                        Remove
-                      </button>
-                    </div>
+            <div className="promo-admin-grid">
+              {promoDrafts.map((promo) => (
+                <div key={promo.id} className="promo-admin-card">
+                  <p className="promo-slide-badge">{promo.badge}</p>
+                  <h4>{promo.headline}</h4>
+                  <p className="muted">{promo.detail}</p>
+                  <span className="promo-slug">{promo.slug}</span>
+                  <div className="promo-admin-actions">
+                    <button
+                      className="badge-btn primary"
+                      type="button"
+                      onClick={() => handlePromoEdit(promo)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="badge-btn danger"
+                      type="button"
+                      onClick={() => handlePromoDelete(promo.id)}
+                    >
+                      Remove
+                    </button>
                   </div>
-                ))}
-                {promoDrafts.length === 0 && <p>No active promotions yet.</p>}
-              </div>
-
-              <form className="signup-form" onSubmit={handlePromoSubmit}>
-                <div className="dash-duo">
-                  <label>
-                    Badge
-                    <input
-                      type="text"
-                      placeholder="Fresh savings"
-                      value={promoForm.badge}
-                      onChange={(e) => setPromoForm((prev) => ({ ...prev, badge: e.target.value }))}
-                    />
-                  </label>
-                  <label>
-                    Headline
-                    <input
-                      type="text"
-                      placeholder="Fresh ingredients, on sale"
-                      value={promoForm.headline}
-                      onChange={(e) => setPromoForm((prev) => ({ ...prev, headline: e.target.value }))}
-                    />
-                  </label>
                 </div>
+              ))}
+              {promoDrafts.length === 0 && <p>No active promotions yet.</p>}
+            </div>
 
+            <form className="signup-form" onSubmit={handlePromoSubmit}>
+              <div className="dash-duo">
                 <label>
-                  Detail
-                  <textarea
-                    rows={2}
-                    placeholder="Short summary of the promotion"
-                    value={promoForm.detail}
-                    onChange={(e) => setPromoForm((prev) => ({ ...prev, detail: e.target.value }))}
+                  Badge
+                  <input
+                    type="text"
+                    placeholder="Fresh savings"
+                    value={promoForm.badge}
+                    onChange={(e) => setPromoForm((prev) => ({ ...prev, badge: e.target.value }))}
                   />
                 </label>
+                <label>
+                  Headline
+                  <input
+                    type="text"
+                    placeholder="Fresh ingredients, on sale"
+                    value={promoForm.headline}
+                    onChange={(e) => setPromoForm((prev) => ({ ...prev, headline: e.target.value }))}
+                  />
+                </label>
+              </div>
 
-                <div className="dash-duo">
-                  <label>
-                    Product slug
-                    <input
-                      type="text"
-                      placeholder="heirloom-tomatoes"
-                      value={promoForm.slug}
-                      onChange={(e) => setPromoForm((prev) => ({ ...prev, slug: e.target.value }))}
-                    />
-                  </label>
-                  <label>
-                    Note
-                    <input
-                      type="text"
-                      placeholder="Limited stock"
-                      value={promoForm.note}
-                      onChange={(e) => setPromoForm((prev) => ({ ...prev, note: e.target.value }))}
-                    />
-                  </label>
-                </div>
+              <label>
+                Detail
+                <textarea
+                  rows={2}
+                  placeholder="Short summary of the promotion"
+                  value={promoForm.detail}
+                  onChange={(e) => setPromoForm((prev) => ({ ...prev, detail: e.target.value }))}
+                />
+              </label>
 
-            <div className="auth-helper-row">
-              <button className="primary-btn" type="submit">
-                {promoForm.id ? "Update promotion" : "Add promotion"}
-              </button>
-              <button className="ghost-btn" type="button" onClick={resetPromoForm}>
-                Clear
-              </button>
-            </div>
-          </form>
-        </article>
-      )}
+              <div className="dash-duo">
+                <label>
+                  Product slug
+                  <input
+                    type="text"
+                    placeholder="heirloom-tomatoes"
+                    value={promoForm.slug}
+                    onChange={(e) => setPromoForm((prev) => ({ ...prev, slug: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  Note
+                  <input
+                    type="text"
+                    placeholder="Limited stock"
+                    value={promoForm.note}
+                    onChange={(e) => setPromoForm((prev) => ({ ...prev, note: e.target.value }))}
+                  />
+                </label>
+              </div>
 
-      {activeTab === "stores" && (
-            <article className="dash-card product-board">
+              <div className="auth-helper-row">
+                <button className="primary-btn" type="submit">
+                  {promoForm.id ? "Update promotion" : "Add promotion"}
+                </button>
+                <button className="ghost-btn" type="button" onClick={resetPromoForm}>
+                  Clear
+                </button>
+              </div>
+            </form>
+          </article>
+        )}
+
+        {activeTab === "stores" && (
+          <article className="dash-card product-board">
             <div className="board-top">
               <div>
                 <p className="dash-label">Stores</p>
