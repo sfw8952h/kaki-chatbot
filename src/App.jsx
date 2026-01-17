@@ -22,7 +22,6 @@ import MembershipPage from "./pages/MembershipPage"
 import ProfilePage from "./pages/ProfilePage"
 import LocationsPage from "./pages/LocationsPage"
 import SupplierLoginPage from "./pages/SupplierLoginPage"
-import SupplierSignUpPage from "./pages/SupplierSignUpPage"
 import ResetPasswordPage from "./pages/ResetPasswordPage"
 import { POINTS_PER_DOLLAR, getTierByPoints } from "./data/membershipTiers"
 import { supabase } from "./lib/supabaseClient"
@@ -908,8 +907,7 @@ function App() {
     const isAdmin = role === "admin"
     const isSupplier = role === "supplier"
 
-    if (currentPath === "/supplier-signup")
-      return <SupplierSignUpPage onNavigate={navigate} />
+    
     if (currentPath === "/supplier-login")
       return <SupplierLoginPage onNavigate={navigate} />
     if (currentPath === "/signup") return <SignUpPage onNavigate={navigate} />
