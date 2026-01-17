@@ -294,15 +294,15 @@ function SignUpPage({ onNavigate }) {
         </button>
 
         <div className="auth-divider">
-            <span>or continue with</span>
-          </div>
+          <span>or continue with</span>
+        </div>
 
-          <div className="social-auth">
-            <button type="button" className="social-btn google" onClick={() => handleOAuth("google")} disabled={loading}>
-              <FaGoogle size={18} />
-              Google
-            </button>
-          </div>
+        <div className="social-auth">
+          <button type="button" className="social-btn google" onClick={handleGoogle} disabled={loading}>
+            <FaGoogle size={18} />
+            Google
+          </button>
+        </div>
       </form>
 
       <div className="auth-helper-row">
