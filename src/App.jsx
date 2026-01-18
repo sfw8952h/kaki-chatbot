@@ -1229,6 +1229,7 @@ function App() {
           activeCategory={activeCategory}
           onCategoryChange={setActiveCategory}
           products={catalog}
+          notifications={promotions}
         />
       )}
 

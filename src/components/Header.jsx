@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from "react"
 import "./Header.css"
 import { FaSearch, FaShoppingCart } from "react-icons/fa"
 import { MdLocationOn } from "react-icons/md"
+import NotificationCenter from "./NotificationCenter"
 
 const CATEGORIES = [
   "All Categories",
@@ -24,7 +25,8 @@ function Header({
   cartCount = 0,
   activeCategory = "All Categories",
   onCategoryChange,
-  products = [], // Add products prop for search overlay
+  products = [],
+  notifications = [], // Promotions used as notifications
 }) {
   const [showSearchOverlay, setShowSearchOverlay] = useState(false)
   const [localSearchTerm, setLocalSearchTerm] = useState("")
@@ -238,6 +240,11 @@ function Header({
                 Login
               </button>
             )}
+
+            <NotificationCenter
+              promotions={notifications}
+              onNavigate={onNavigate}
+            />
 
             <button
               className="header-btn outline-btn zoom-on-hover header-cart-btn"
