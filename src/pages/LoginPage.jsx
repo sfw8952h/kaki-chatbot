@@ -2,8 +2,8 @@
 import { useEffect, useState } from "react"
 import "./Pages.css"
 import { getSupabaseClient } from "../lib/supabaseClient"
-import { FaGoogle, FaFacebook, FaApple } from "react-icons/fa"
-import { FaXTwitter } from "react-icons/fa6"
+import { FaGoogle} from "react-icons/fa"
+
 
 const MEMBER_REMEMBER_EMAIL_KEY = "kaki_member_remember_email"
 
