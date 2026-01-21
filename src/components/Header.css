@@ -43,8 +43,7 @@
 ========================= */
 
 .search-container {
-  flex: 3;
-  margin: 0 40px;
+  margin: 0 20px;
   position: relative;
   z-index: 1001;
 }

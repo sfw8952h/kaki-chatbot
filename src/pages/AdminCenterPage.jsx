@@ -13,7 +13,7 @@ import {
   FaTags,
 } from "react-icons/fa"
 import { getSupabaseClient } from "../lib/supabaseClient"
-import "./Pages.css"
+import "./AdminCenter.css"
 
 // fallback demo products (not in supabase)
 const initialProducts = [
@@ -687,7 +687,7 @@ function AdminCenterPage({
           {navLinks.map((link) => (
             <button
               key={link.label}
-              className={`nav-link ${link.key && activeTab === link.key ? "active" : ""}`}
+              className={`nav-link ${link.key && (activeTab === link.key || (link.key === "products" && activeTab === "add")) ? "active" : ""}`}
               type="button"
               onClick={() => link.key && setActiveTab(link.key)}
             >
@@ -698,7 +698,7 @@ function AdminCenterPage({
         </nav>
 
         <button className="nav-link logout" type="button" onClick={handleLogout}>
-          <FaSignOutAlt />
+          < FaSignOutAlt />
           <span>Log out</span>
         </button>
       </aside>

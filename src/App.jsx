@@ -285,6 +285,30 @@ function App() {
     [sessionUser]
   )
 
+  const handleRedeemPoints = useCallback(
+    async (pointsToDeduct) => {
+      if (!supabase || !sessionUser || !profile) return false
+      const currentPoints = profile.membership_points || 0
+      if (currentPoints < pointsToDeduct) return false
+
+      const newPoints = currentPoints - pointsToDeduct
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({ membership_points: newPoints })
+        .eq("id", sessionUser.id)
+        .select("full_name, role, membership_tier, membership_points")
+        .maybeSingle()
+
+      if (error) {
+        console.warn("Unable to redeem points", error)
+        return false
+      }
+      setProfile(data || null)
+      return true
+    },
+    [sessionUser, profile]
+  )
+
   // feedback handlers
   const handleFeedbackSubmitted = (entry) => {
     setFeedbackEntries((prev) => [
@@ -1094,6 +1118,7 @@ function App() {
           profile={profile}
           onNavigate={navigate}
           onMembershipChange={handleMembershipUpdate}
+          onRedeemVoucher={handleRedeemPoints}
         />
       )
     if (currentPath === "/profile")

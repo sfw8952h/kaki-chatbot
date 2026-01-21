@@ -1,250 +1,522 @@
+/* ===========================
+   MEMBERSHIP PAGE - MATCHING APP AESTHETIC
+=========================== */
+
 .membership-page {
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-  animation: fadeIn 0.6s ease-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.membership-alert {
-  border-radius: 20px;
-  padding: 24px;
-  background: linear-gradient(135deg, #fef2f2, #fee2e2);
-  color: #991b1b;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  border: 1px solid rgba(153, 27, 27, 0.1);
-  box-shadow: 0 4px 12px rgba(153, 27, 27, 0.05);
-}
-
-.membership-status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  background: white;
-  border-radius: 28px;
+  width: min(960px, 92vw);
+  margin: 0 auto;
   padding: 32px;
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
-}
-
-.membership-status h3 {
-  margin: 0;
-  font-size: 2.4rem;
-  font-weight: 800;
-  color: #1e293b;
-  letter-spacing: -0.02em;
-}
-
-.points-block {
-  text-align: right;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+  border: 1px solid rgba(15, 23, 42, 0.08);
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  gap: 24px;
 }
 
-.points-block strong {
-  font-size: 2.8rem;
-  font-weight: 900;
-  line-height: 1;
-  background: linear-gradient(135deg, #10b981, #059669);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+.membership-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 
-.points-block span {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #64748b;
+.membership-header h2 {
+  margin: 0;
+  font-size: 2rem;
+  color: var(--primary);
+}
+
+.membership-header .eyebrow {
+  letter-spacing: 0.25em;
+  font-size: 0.8rem;
+  color: var(--text-muted);
   text-transform: uppercase;
+}
+
+.membership-header .muted {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  margin: 8px 0 0 0;
+}
+
+.membership-tabs {
+  display: flex;
+  background: var(--surface-soft);
+  padding: 4px;
+  border-radius: 12px;
+  gap: 4px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.tab-btn {
+  border: none;
+  background: transparent;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.tab-btn.active {
+  background: var(--surface);
+  color: #0a6c51;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.tab-btn:hover:not(.active) {
+  color: var(--primary);
+}
+
+/* Status Card */
+.membership-status-card {
+  background: rgba(13, 162, 116, 0.04);
+  border: 1px solid rgba(13, 162, 116, 0.15);
+  border-radius: 20px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.status-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.tier-info h3 {
+  font-size: 1.8rem;
+  font-weight: 800;
+  margin: 4px 0;
+  color: var(--primary);
+}
+
+.tier-info p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+.tiny-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #0a6c51;
   letter-spacing: 0.1em;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.points-display {
+  background: var(--surface);
+  padding: 16px 24px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+  text-align: right;
+}
+
+.points-value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #0a6c51;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.points-value svg {
+  color: #f59e0b;
+  font-size: 1.5rem;
+}
+
+.points-display span {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
   margin-top: 4px;
 }
 
-.progress-row {
+.progress-section {
+  background: var(--surface);
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.progress-info {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background: #f8fafc;
-  padding: 24px;
-  border-radius: 24px;
-  border: 1px solid rgba(0, 0, 0, 0.02);
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--primary);
 }
 
-.progress-bar {
-  width: 100%;
-  height: 14px;
-  border-radius: 999px;
-  background: #e2e8f0;
+.progress-track {
+  height: 8px;
+  background: var(--surface-soft);
+  border-radius: 99px;
   overflow: hidden;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+  margin: 12px 0;
+  border: 1px solid rgba(15, 23, 42, 0.06);
 }
 
-.progress-bar span {
-  display: block;
+.progress-fill {
   height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #10b981, #059669);
-  transition: width 1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border-radius: 99px;
+  transition: width 1s ease-in-out;
 }
 
+.remaining-points {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Tier Selection Cards */
 .tier-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 24px;
-  margin-top: 12px;
+  gap: 20px;
 }
 
 .tier-card {
-  border-radius: 32px;
-  padding: 32px;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  color: #1e293b;
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border-radius: 20px;
+  padding: 24px;
   position: relative;
   overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  background: var(--tier-accent);
+  transition: all 0.3s ease;
+  box-shadow: var(--card-shadow);
+  min-height: 300px;
 }
 
 .tier-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
 }
 
-.tier-card--active {
-  border: 2px solid #10b981;
-  box-shadow: 0 20px 40px rgba(16, 185, 129, 0.15);
+.tier-card-glow {
+  display: none;
 }
 
-.tier-card--active::before {
-  content: 'Current';
-  position: absolute;
-  top: 16px;
-  right: -32px;
-  background: #10b981;
-  color: white;
-  padding: 4px 40px;
-  font-size: 0.7rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  transform: rotate(45deg);
-}
-
-.tier-card header {
+.tier-icon-wrap {
+  width: 48px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.tier-star {
+  font-size: 1.3rem;
+  color: #0f172a;
 }
 
 .tier-card header strong {
-  font-size: 1.8rem;
-  font-weight: 900;
-  letter-spacing: -0.01em;
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 4px;
 }
 
-.tier-card header span {
-  font-size: 0.95rem;
-  font-weight: 600;
-  opacity: 0.8;
+.tier-points-req {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.4);
+  padding: 4px 10px;
+  border-radius: 99px;
+  display: inline-block;
+  opacity: 0.85;
 }
 
-.tier-card ul {
-  margin: 0;
-  padding: 0;
+.tier-perks {
   list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  padding: 0;
+  margin: 20px 0;
   flex: 1;
 }
 
-.tier-card li {
+.tier-perks li {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-bottom: 10px;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
+  color: #0f172a;
+  opacity: 0.9;
 }
 
-.tier-card li::before {
-  content: '✓';
-  font-weight: 900;
-  color: inherit;
+.tier-perks svg {
+  color: #0f172a;
+  font-size: 1.1rem;
+  flex-shrink: 0;
 }
 
-.tier-card .ghost-btn {
-  background: white;
+.tier-action-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
   border: none;
-  border-radius: 16px;
-  padding: 14px;
-  font-weight: 700;
-  color: #1e293b;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-}
-
-.tier-card .ghost-btn:hover:not(:disabled) {
-  background: #1e293b;
+  background: #0a6c51;
   color: white;
-  transform: scale(1.02);
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(10, 108, 81, 0.2);
 }
 
-.tier-card .ghost-btn:disabled {
+.tier-action-btn:hover:not(:disabled) {
+  background: #085d44;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(10, 108, 81, 0.3);
+}
+
+.tier-action-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.benefits-list {
+.tier-action-btn.active {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(4px);
+  color: #0a6c51;
+  cursor: default;
+  box-shadow: none;
+  border: 1px solid rgba(10, 108, 81, 0.3);
+}
+
+.tier-card--active {
+  border-color: #0a6c51;
+  box-shadow: 0 0 0 2px rgba(10, 108, 81, 0.2), var(--card-shadow);
+}
+
+/* Vouchers Section */
+.vouchers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+}
+
+.voucher-card {
+  background: var(--surface);
+  border-radius: 20px;
+  padding: 24px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 32px;
-  border-radius: 28px;
-  background: #1e293b;
-  color: #f1f5f9;
-  box-shadow: 0 20px 40px rgba(30, 41, 59, 0.15);
+  box-shadow: var(--card-shadow);
+  transition: all 0.3s ease;
 }
 
-.benefits-list p {
+.voucher-card:hover:not(.locked) {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+}
+
+.voucher-card.locked {
+  opacity: 0.6;
+}
+
+.voucher-icon {
+  width: 48px;
+  height: 48px;
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.voucher-info h4 {
+  margin: 0 0 4px 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.voucher-info p {
   margin: 0;
-  font-size: 1.1rem;
-  line-height: 1.6;
-  font-weight: 500;
-  opacity: 0.9;
+  font-size: 0.85rem;
+  color: var(--text-muted);
 }
 
-.benefits-list p::before {
-  content: '✦ ';
-  color: #10b981;
+.voucher-cost {
+  margin-top: 4px;
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: #0a6c51;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-@media (max-width: 720px) {
-  .membership-status {
-    flex-direction: column;
-    align-items: flex-start;
+.voucher-cost svg {
+  color: #f59e0b;
+}
+
+.redeem-btn {
+  padding: 12px;
+  border-radius: 12px;
+  border: none;
+  background: #0a6c51;
+  color: white;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.redeem-btn:hover:not(:disabled) {
+  background: #085d44;
+  transform: translateY(-2px);
+}
+
+.redeem-btn:disabled {
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* Alert */
+.membership-alert {
+  background: rgba(13, 162, 116, 0.08);
+  border: 1px solid rgba(13, 162, 116, 0.2);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  text-align: center;
+}
+
+.membership-alert p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+/* Toast Notification */
+.membership-toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translate(-50%, 0);
+  background: var(--surface);
+  padding: 16px 28px;
+  border-radius: 16px;
+  box-shadow: var(--panel-shadow);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  z-index: 2000;
+  animation: slideUpToast 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+.membership-toast.success {
+  border-left: 4px solid #0a6c51;
+  color: #0a6c51;
+}
+
+.membership-toast.success svg {
+  color: #0a6c51;
+}
+
+.membership-toast.error {
+  border-left: 4px solid #dc2626;
+  color: #dc2626;
+}
+
+@keyframes slideUpToast {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .membership-page {
     padding: 24px;
   }
 
-  .points-block {
+  .membership-header {
+    flex-direction: column;
     align-items: flex-start;
+  }
+
+  .status-main {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .points-display {
+    width: 100%;
     text-align: left;
-    margin-top: 16px;
+  }
+
+  .points-value {
+    justify-content: flex-start;
+  }
+
+  .tier-grid,
+  .vouchers-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .membership-page {
+    padding: 20px;
+  }
+
+  .membership-header h2 {
+    font-size: 1.6rem;
+  }
+
+  .tier-card {
+    min-height: auto;
   }
 }
