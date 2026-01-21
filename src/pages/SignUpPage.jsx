@@ -35,19 +35,17 @@ function SignUpPage({ onNavigate }) {
   }, [cleanEmail])
 
   // Phone: accept +65 or 65 or local 8-digit, and ignore spaces/dashes
-  const normalizePhone = (raw) => raw.replace(/[\s-]/g, "")
+  const normalizePhone = (raw) => String(raw || "").replace(/[\s-]/g, "")
   const normalizedPhone = useMemo(() => normalizePhone(phone.trim()), [phone])
 
   const isPhoneValid = useMemo(() => {
     if (!normalizedPhone) return false
-    // allow: +6581234567 or 6581234567 or 81234567
     const local8 = /^[89]\d{7}$/
     const sgWith65 = /^(?:\+65|65)([89]\d{7})$/
     return local8.test(normalizedPhone) || sgWith65.test(normalizedPhone)
   }, [normalizedPhone])
 
   const formattedPhoneForProfile = useMemo(() => {
-    // store as +65XXXXXXXX
     const local8 = normalizedPhone.match(/^([89]\d{7})$/)
     if (local8) return `+65${local8[1]}`
     const sg = normalizedPhone.match(/^(?:\+65|65)([89]\d{7})$/)
@@ -84,10 +82,18 @@ function SignUpPage({ onNavigate }) {
     phone.length === 0 ? "" : !isPhoneValid ? "Enter a valid SG number (e.g. +65 8123 4567)." : ""
 
   const passwordError =
-    password.length === 0 ? "" : passwordStrength !== "strong" ? "Use a stronger password (8+ chars, A-Z, a-z, 0-9, symbol)." : ""
+    password.length === 0
+      ? ""
+      : passwordStrength !== "strong"
+        ? "Use a stronger password (8+ chars, A-Z, a-z, 0-9, symbol)."
+        : ""
 
   const confirmError =
     confirmPassword.length === 0 ? "" : !passwordsMatch ? "Passwords do not match." : ""
+
+  // ✅ If you want signup to still work even when captcha key is missing on Vercel,
+  // make captcha optional by toggling this:
+  const CAPTCHA_REQUIRED = true
 
   const canSubmit =
     !!cleanName &&
@@ -95,7 +101,7 @@ function SignUpPage({ onNavigate }) {
     isPhoneValid &&
     passwordStrength === "strong" &&
     passwordsMatch &&
-    !!captchaToken &&
+    (!CAPTCHA_REQUIRED || !!captchaToken) &&
     !loading
 
   // ✅ verify captcha on server (recommended)
@@ -122,12 +128,15 @@ function SignUpPage({ onNavigate }) {
     if (!isPhoneValid) return setError("Please enter a valid Singapore mobile number.")
     if (passwordStrength !== "strong") return setError("Please choose a stronger password.")
     if (!passwordsMatch) return setError("Passwords do not match.")
-    if (!captchaToken) return setError("Please complete the captcha.")
-    if (!SITE_KEY) return setError("Missing reCAPTCHA site key. Add VITE_RECAPTCHA_SITE_KEY in .env")
+
+    if (CAPTCHA_REQUIRED) {
+      if (!SITE_KEY) return setError("Missing reCAPTCHA site key. Add VITE_RECAPTCHA_SITE_KEY in .env and Vercel.")
+      if (!captchaToken) return setError("Please complete the captcha.")
+    }
 
     setLoading(true)
     try {
-      await verifyCaptcha(captchaToken)
+      if (CAPTCHA_REQUIRED) await verifyCaptcha(captchaToken)
 
       const supabase = getSupabaseClient()
       const { data, error: signUpError } = await supabase.auth.signUp({
@@ -168,14 +177,14 @@ function SignUpPage({ onNavigate }) {
   }
 
   // Google OAuth
-  const handleGoogle = async () => {
+  const handleOAuth = async (provider) => {
     setStatus("")
     setError("")
     setLoading(true)
     try {
       const supabase = getSupabaseClient()
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
+        provider,
         options: { redirectTo: window.location.origin },
       })
       if (error) throw error
@@ -239,7 +248,7 @@ function SignUpPage({ onNavigate }) {
             />
             <button
               type="button"
-              className="ghost-btn zoom-on-hover pw-toggle"
+              className="ghost-btn zoom-on-hover password-toggle"
               onClick={() => setShowPassword((v) => !v)}
               disabled={loading}
             >
@@ -267,7 +276,7 @@ function SignUpPage({ onNavigate }) {
             />
             <button
               type="button"
-              className="ghost-btn zoom-on-hover pw-toggle"
+              className="ghost-btn zoom-on-hover password-toggle"
               onClick={() => setShowConfirm((v) => !v)}
               disabled={loading}
             >
@@ -278,19 +287,15 @@ function SignUpPage({ onNavigate }) {
         </label>
 
         {/* CAPTCHA */}
-        <div className="captcha-row">
-          {SITE_KEY ? (
+        {CAPTCHA_REQUIRED && (
+          <div className="captcha-row">
             <ReCAPTCHA
               ref={recaptchaRef}
-              sitekey={SITE_KEY}
+              sitekey={SITE_KEY || ""}
               onChange={(token) => setCaptchaToken(token || "")}
             />
-          ) : (
-            <div className="field-error">
-              Configuration Error: Missing ReCAPTCHA Site Key.
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {status && <p className="auth-status success">{status}</p>}
         {error && <p className="auth-status error">{error}</p>}
@@ -304,7 +309,12 @@ function SignUpPage({ onNavigate }) {
         </div>
 
         <div className="social-auth">
-          <button type="button" className="social-btn google" onClick={handleGoogle} disabled={loading}>
+          <button
+            type="button"
+            className="social-btn google"
+            onClick={() => handleOAuth("google")}
+            disabled={loading}
+          >
             <FaGoogle size={18} />
             Google
           </button>
@@ -313,7 +323,12 @@ function SignUpPage({ onNavigate }) {
 
       <div className="auth-helper-row">
         <span>Already a member?</span>
-        <button className="ghost-btn zoom-on-hover" type="button" onClick={() => onNavigate?.("/login")}>
+        <button
+          className="ghost-btn zoom-on-hover"
+          type="button"
+          onClick={() => onNavigate?.("/login")}
+          disabled={loading}
+        >
           Login
         </button>
       </div>
