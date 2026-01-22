@@ -237,7 +237,12 @@ function OrderTrackingPage({ user, onNavigate, orders = [] }) {
             </div>
           ) : (
             activeOrders.map((order) => {
-              const progressPercentage = Math.min((order.step / 4) * 100, 100)
+              const steps = [
+                { label: 'Processing', icon: <FiPackage /> },
+                { label: 'Confirmed', icon: <FiCheckCircle /> },
+                { label: 'On the way', icon: <FiTruck /> },
+                { label: 'Arriving', icon: <FiMapPin /> }
+              ]
 
               return (
                 <div key={order.id} className="order-tracking-card">
@@ -263,27 +268,29 @@ function OrderTrackingPage({ user, onNavigate, orders = [] }) {
                       </div>
                     </div>
 
-                    <div className="order-progress-container">
-                      <div className="progress-track">
-                        <div className="progress-bar-fill" style={{ width: `${progressPercentage}%` }}></div>
+                    <div className="delivery-progress">
+                      <div className="progress-header">
+                        <h4>Delivery Status</h4>
+                        <span className="status-badge">{order.status}</span>
+                      </div>
 
-                        {[
-                          { label: 'Processing', icon: <FiPackage /> },
-                          { label: 'Confirmed', icon: <FiCheckCircle /> },
-                          { label: 'On the way', icon: <FiTruck /> },
-                          { label: 'Arriving', icon: <FiMapPin /> }
-                        ].map((s, idx) => {
+                      <div className="progress-timeline">
+                        {steps.map((step, idx) => {
                           const stepNum = idx + 1
-                          let statusClass = ""
-                          if (order.step > stepNum) statusClass = "completed"
-                          else if (order.step === stepNum) statusClass = "active"
+                          const isCompleted = order.step > stepNum
+                          const isActive = order.step === stepNum
 
                           return (
-                            <div key={s.label} className={`progress-step ${statusClass}`}>
-                              <div className="step-node">
-                                {order.step > stepNum ? <FiCheckCircle /> : s.icon}
+                            <div key={step.label} className={`timeline-step ${isCompleted ? 'completed' : ''} ${isActive ? 'active' : ''}`}>
+                              <div className="step-indicator">
+                                <div className="step-dot">
+                                  {isCompleted ? <FiCheckCircle /> : step.icon}
+                                </div>
+                                {idx < steps.length - 1 && <div className="step-line" />}
                               </div>
-                              <span className="step-label">{s.label}</span>
+                              <div className="step-info">
+                                <span className="step-title">{step.label}</span>
+                              </div>
                             </div>
                           )
                         })}

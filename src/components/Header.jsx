@@ -4,6 +4,7 @@ import "./Header.css"
 import { FaSearch, FaShoppingCart } from "react-icons/fa"
 import { MdLocationOn } from "react-icons/md"
 import NotificationCenter from "./NotificationCenter"
+import { getSupabaseClient } from "../lib/supabaseClient"
 
 const CATEGORIES = [
   "All Categories",
@@ -27,7 +28,9 @@ function Header({
   onCategoryChange,
   products = [],
   notifications = [], // Promotions used as notifications
+  orders = [],
 }) {
+  const supabase = getSupabaseClient()
   const [showSearchOverlay, setShowSearchOverlay] = useState(false)
   const [localSearchTerm, setLocalSearchTerm] = useState("")
   const searchRef = useRef(null)
@@ -242,8 +245,11 @@ function Header({
             )}
 
             <NotificationCenter
+              user={user}
               promotions={notifications}
+              orders={orders}
               onNavigate={onNavigate}
+              supabase={supabase}
             />
 
             <button

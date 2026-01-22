@@ -1,4 +1,4 @@
-// component: App (routing + layout shell)
+﻿// component: App (routing + layout shell)
 import { useCallback, useEffect, useMemo, useState } from "react"
 import "./App.css"
 import Header from "./components/Header"
@@ -1169,7 +1169,7 @@ function App() {
             </div>
           </section>
         )}
-        {!hasSearch && <PromoCarousel promotions={activePromotions} />}
+        {!hasSearch && activeCategory === "All Categories" && <PromoCarousel promotions={activePromotions} />}
         <GroceryShowcase
           onNavigate={navigate}
           products={filteredCatalog.length ? filteredCatalog : catalog}
@@ -1255,6 +1255,7 @@ function App() {
           onCategoryChange={setActiveCategory}
           products={catalog}
           notifications={promotions}
+          orders={orders}
         />
       )}
 

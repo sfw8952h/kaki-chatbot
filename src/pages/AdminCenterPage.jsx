@@ -13,6 +13,8 @@ import {
   FaTags,
 } from "react-icons/fa"
 import { getSupabaseClient } from "../lib/supabaseClient"
+import FeedbackItem from "../components/FeedbackItem"
+import "../components/FeedbackItem.css"
 import "./AdminCenter.css"
 
 // fallback demo products (not in supabase)

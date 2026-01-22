@@ -105,10 +105,25 @@
     cursor: pointer;
     transition: background 0.2s ease;
     border-bottom: 1px solid #f8fafc;
+    position: relative;
+}
+
+.notification-item.unread {
+    background: rgba(16, 185, 129, 0.02);
 }
 
 .notification-item:hover {
     background: #f8fafc;
+}
+
+.unread-dot {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 8px;
+    height: 8px;
+    background: #10b981;
+    border-radius: 50%;
 }
 
 .n-icon {
@@ -122,6 +137,26 @@
     justify-content: center;
     flex-shrink: 0;
     font-size: 1.2rem;
+}
+
+.n-icon-delivery_status {
+    background: #dbeafe;
+    color: #2563eb;
+}
+
+.n-icon-feedback_reply {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.n-icon-order_update {
+    background: #f3e8ff;
+    color: #9333ea;
+}
+
+.n-icon-promo {
+    background: #f0fdf4;
+    color: #10b981;
 }
 
 .n-content {

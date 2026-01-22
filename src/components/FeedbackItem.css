@@ -1,0 +1,207 @@
+/* Feedback Item Styles */
+.feedback-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 0;
+}
+
+.feedback-item-card {
+    background: var(--surface);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 16px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.feedback-item-card:hover {
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.feedback-item-header {
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.feedback-item-header:hover {
+    background: var(--surface-soft);
+}
+
+.feedback-item-main {
+    flex: 1;
+}
+
+.feedback-item-main strong {
+    display: block;
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--primary);
+    margin-bottom: 4px;
+}
+
+.feedback-preview {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.feedback-item-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.feedback-date {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.replied-badge {
+    background: rgba(16, 185, 129, 0.1);
+    color: #059669;
+    padding: 4px 10px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.expand-btn {
+    background: transparent;
+    border: none;
+    font-size: 1.2rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.expand-btn:hover {
+    background: rgba(15, 23, 42, 0.05);
+    color: var(--primary);
+}
+
+.feedback-item-body {
+    padding: 0 20px 20px 20px;
+    border-top: 1px solid rgba(15, 23, 42, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.feedback-details {
+    padding-top: 16px;
+}
+
+.feedback-details .label,
+.feedback-reply-section .label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+    display: block;
+}
+
+.feedback-details p {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--primary);
+    line-height: 1.6;
+}
+
+.feedback-reply-section textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 12px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    resize: vertical;
+    min-height: 100px;
+    transition: border-color 0.2s ease;
+}
+
+.feedback-reply-section textarea:focus {
+    outline: none;
+    border-color: #0a6c51;
+    box-shadow: 0 0 0 3px rgba(10, 108, 81, 0.1);
+}
+
+.feedback-reply-section textarea:disabled {
+    background: var(--surface-soft);
+    cursor: not-allowed;
+}
+
+.reply-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+    gap: 12px;
+}
+
+.reply-status {
+    font-size: 0.85rem;
+    font-weight: 700;
+    flex: 1;
+}
+
+.reply-status.success {
+    color: #059669;
+}
+
+.reply-status.error {
+    color: #dc2626;
+}
+
+.feedback-reply-info {
+    padding-top: 12px;
+    border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.feedback-reply-info small {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.empty-feedback {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.empty-feedback p {
+    margin: 0;
+    font-size: 0.95rem;
+}
