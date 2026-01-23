@@ -367,13 +367,30 @@ function App() {
       console.warn("Failed to save promotions locally:", err)
     }
 
-    // 2. Attempt Sync to Supabase (Best effort)
+    // 2. Sync to Supabase (Upsert active + Delete removed)
     if (supabase) {
       try {
-        const { error } = await supabase.from("promotions").upsert(nextPromotions)
-        if (error) console.warn("Promotions table sync failed (table might be missing):", error.message)
+        const activeIds = nextPromotions.map((p) => p.id)
+
+        // A. Upsert current items
+        if (nextPromotions.length > 0) {
+          const { error } = await supabase.from("promotions").upsert(nextPromotions)
+          if (error) throw error
+        }
+
+        // B. Delete items not in the list
+        let deleteQuery = supabase.from("promotions").delete()
+
+        if (activeIds.length === 0) {
+          // If clear all, delete everything (using a safe condition like id not equal to impossible value)
+          await deleteQuery.neq("id", "_impossible_val_")
+        } else {
+          // Delete rows where ID is NOT in the active set
+          await deleteQuery.not("id", "in", `(${activeIds.map(id => `"${id}"`).join(',')})`)
+        }
+
       } catch (err) {
-        // ignore errors if table doesn't exist
+        console.warn("Promotions sync failed:", err.message)
       }
     }
   }, [])

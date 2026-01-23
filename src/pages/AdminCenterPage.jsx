@@ -158,6 +158,7 @@ function AdminCenterPage({
   const [feedback, setFeedback] = useState([])
   const [feedbackStatus, setFeedbackStatus] = useState("")
   const [productStatus, setProductStatus] = useState("")
+  const [feedbackTick, setFeedbackTick] = useState(0)
 
   const [storeDrafts, setStoreDrafts] = useState(storeLocations || [])
   const [storeMessages, setStoreMessages] = useState({})
@@ -634,7 +635,7 @@ function AdminCenterPage({
 
         const { data, error } = await supabase
           .from("complaints")
-          .select("id, subject, details, created_at")
+          .select("id, subject, details, created_at, user_id")
           .order("created_at", { ascending: false })
 
         if (error) throw error
@@ -647,7 +648,7 @@ function AdminCenterPage({
     }
 
     if (activeTab === "support") loadFeedback()
-  }, [activeTab, ensureSession, supabase])
+  }, [activeTab, ensureSession, supabase, feedbackTick])
 
   // load products on mount
   useEffect(() => {
@@ -1589,21 +1590,31 @@ function AdminCenterPage({
                 <p className="dash-label">Customer feedback</p>
                 <strong>Complaints submitted via feedback</strong>
               </div>
-              {feedbackStatus && <span className="status warn">{feedbackStatus}</span>}
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                {feedbackStatus && <span className="status warn">{feedbackStatus}</span>}
+                <button
+                  className="ghost-btn compact"
+                  onClick={() => setFeedbackTick(prev => prev + 1)}
+                >
+                  Refresh
+                </button>
+              </div>
             </div>
 
             <div className="dash-table">
-              <div className="dash-table-head">
+              <div className="dash-table-head" style={{ gridTemplateColumns: "1fr 2fr 120px 100px", display: "grid", gap: "1rem", fontWeight: "bold", padding: "10px", borderBottom: "1px solid #eee" }}>
                 <span>Subject</span>
                 <span>Details</span>
+                <span>Sender ID</span>
                 <span>Created</span>
               </div>
 
               <div className="dash-table-body">
                 {combinedFeedback.map((item) => (
-                  <div key={item.id} className="dash-table-row">
+                  <div key={item.id} className="dash-table-row" style={{ gridTemplateColumns: "1fr 2fr 120px 100px", display: "grid", gap: "1rem", padding: "10px", borderBottom: "1px solid #eee", alignItems: "center" }}>
                     <span>{item.subject}</span>
                     <span>{item.details}</span>
+                    <span className="muted small-note" title={item.user_id}>{item.user_id ? item.user_id.slice(0, 8) + "..." : "Anonymous"}</span>
                     <span className="muted">{item.created_at?.slice(0, 10) || "—"}</span>
                   </div>
                 ))}

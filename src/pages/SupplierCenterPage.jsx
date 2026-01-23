@@ -29,6 +29,12 @@ function SupplierCenterPage({ onNavigate }) {
   const [statusMsg, setStatusMsg] = useState("")
   const [activeTab, setActiveTab] = useState("dashboard")
 
+  // Support form state
+  const [supportSubject, setSupportSubject] = useState("")
+  const [supportDetails, setSupportDetails] = useState("")
+  const [supportStatus, setSupportStatus] = useState("")
+  const [supportSending, setSupportSending] = useState(false)
+
   // Data state
   const [myProducts, setMyProducts] = useState([])
   const [mySales, setMySales] = useState([])
@@ -304,6 +310,39 @@ function SupplierCenterPage({ onNavigate }) {
     } catch (err) {
       console.error("Delete failed:", err)
       setStatusMsg("Could not delete product. " + (err?.message || "Unknown error"))
+    }
+  }
+
+  // -------------------------
+  // Contact Support
+  // -------------------------
+  const handleSupportSubmit = async (e) => {
+    e.preventDefault()
+    setSupportStatus("")
+    if (!supportSubject.trim() || !supportDetails.trim()) {
+      setSupportStatus("Please fill in all fields.")
+      return
+    }
+
+    setSupportSending(true)
+    try {
+      const supabase = getSupabaseClient()
+      const { error } = await supabase.from("complaints").insert({
+        user_id: userId,
+        subject: supportSubject.trim(),
+        details: supportDetails.trim(),
+      })
+
+      if (error) throw error
+
+      setSupportStatus("Message sent to admin.")
+      setSupportSubject("")
+      setSupportDetails("")
+    } catch (err) {
+      console.error("Support send failed:", err)
+      setSupportStatus("Failed to send: " + err.message)
+    } finally {
+      setSupportSending(false)
     }
   }
 
@@ -645,14 +684,48 @@ function SupplierCenterPage({ onNavigate }) {
           )}
 
           {activeTab === "support" && (
-            <article className="dash-card">
-              <p className="dash-label">Support</p>
-              <p className="muted">Need help? Reach out to the admin team.</p>
-              <div className="auth-helper-row">
-                <button className="primary-btn" type="button">
-                  Contact support
-                </button>
+            <article className="dash-card form-card">
+              <div className="dash-card-head">
+                <div>
+                  <p className="dash-label">Support</p>
+                  <strong>Contact Admin</strong>
+                  <p className="muted">Need help? Send a message directly to the admin team.</p>
+                </div>
               </div>
+
+              <form className="signup-form" onSubmit={handleSupportSubmit}>
+                <label>
+                  Subject
+                  <input
+                    type="text"
+                    value={supportSubject}
+                    onChange={(e) => setSupportSubject(e.target.value)}
+                    placeholder="Inquiry about payments..."
+                  />
+                </label>
+
+                <label>
+                  Message
+                  <textarea
+                    rows={4}
+                    value={supportDetails}
+                    onChange={(e) => setSupportDetails(e.target.value)}
+                    placeholder="Describe your issue..."
+                  />
+                </label>
+
+                {supportStatus && (
+                  <p className={`status ${supportStatus.includes("sent") ? "ok" : "warn"}`}>
+                    {supportStatus}
+                  </p>
+                )}
+
+                <div className="auth-helper-row">
+                  <button className="primary-btn" type="submit" disabled={supportSending}>
+                    {supportSending ? "Sending..." : "Send Message"}
+                  </button>
+                </div>
+              </form>
             </article>
           )}
         </div>
