@@ -820,14 +820,23 @@ function Chatbot({
   const extractDishName = useCallback((text) => {
     if (!text) return null
     const lowered = text.toLowerCase()
+
+    // Ignore non-recipe commands
+    if (lowered.includes("complaint") || lowered.includes("report") || lowered.includes("mistake")) return null
+
     const match =
       lowered.match(/(?:make|cook|prepare|recipe for|ingredients for|how to make)\s+(.+)/) ||
       lowered.match(/(?:need|want)\s+to\s+(?:make|cook|prepare)\s+(.+)/)
     if (!match || !match[1]) return null
-    return match[1]
+
+    const caught = match[1]
       .replace(/\bto\s+(?:my\s+)?cart\b.*$/i, "")
       .replace(/[?.!]+$/, "")
       .trim()
+
+    // Filter out short garbage
+    if (caught.length < 3 || /^(me|it|that|this)$/i.test(caught)) return null
+    return caught
   }, [])
 
   const parseRecipePayload = useCallback((rawText) => {
@@ -912,16 +921,25 @@ function Chatbot({
     async (text) => {
       const dishName = extractDishName(text)
       if (!dishName) return null
+
+      // 1. Redirect to recipes page
+      window.initialRecipeSearch = dishName
+      safeNavigate("/recipes")
+
+      // 2. Fetch recipe details to show in chat as well
       const groqRecipe = await fetchRecipeFromGroq(dishName)
       if (groqRecipe) {
         return buildRecipeCard(groqRecipe)
       }
+
       const fallback = handleRecipeIntent(text)
       if (fallback) return fallback
-      return `I can help list ingredients for "${dishName}" once the recipe assistant is available.`
+
+      return `Opening the recipes page directly for "${dishName}"...`
     },
-    [buildRecipeCard, extractDishName, fetchRecipeFromGroq, handleRecipeIntent],
+    [buildRecipeCard, extractDishName, fetchRecipeFromGroq, handleRecipeIntent, safeNavigate],
   )
+
 
   const handleShortcutNavigation = useCallback(
     (text) => {
@@ -1308,6 +1326,22 @@ function Chatbot({
 
       if (/(order\s+pizza|pizza)/.test(normalized) && /(order|deliver|buy)/.test(normalized)) {
         return "I cannot order pizza, but I can help with groceries and FreshMart orders."
+      }
+
+      // Check for explicit recipe search (e.g. "make fried rice", "recipe for pasta")
+      // Uses normalized text to handle case/punctuation
+      const recipeSearchMatch =
+        normalized.match(/^(?:i\s+want\s+to\s+|can\s+you\s+|please\s+)?(?:how\s+to\s+make|make|cook|prepare|recipe\s+for|find\s+recipe\s+for)\s+(?!.*(complaint|report|mistake|bug|suggestion))(.+)$/i)
+
+      if (recipeSearchMatch) {
+        const dish = recipeSearchMatch[recipeSearchMatch.length - 1].trim()
+
+        // simple heuristic to ensure it's not a long sentence describing a bug
+        if (dish.length > 2 && dish.length < 50 && !/^(me|it|that|this)$/i.test(dish)) {
+          window.initialRecipeSearch = dish
+          safeNavigate("/recipes")
+          return `Searching for "${dish}" recipes...`
+        }
       }
 
       const cookMatch =

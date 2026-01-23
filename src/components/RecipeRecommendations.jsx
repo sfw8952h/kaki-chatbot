@@ -94,7 +94,14 @@ function RecipeRecommendations({ onAddToCart }) {
   }
 
   useEffect(() => {
-    fetchMeals(`search.php?f=${DEFAULT_LETTER}`)
+    if (window.initialRecipeSearch) {
+      const term = window.initialRecipeSearch
+      setQuery(term)
+      fetchMeals(`search.php?s=${encodeURIComponent(term)}`)
+      window.initialRecipeSearch = null
+    } else {
+      fetchMeals(`search.php?f=${DEFAULT_LETTER}`)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
