@@ -7,9 +7,6 @@ function PromoCarousel({ promotions = [] }) {
   const slides = promotions.length ? promotions : []
   const slideCount = slides.length
 
-  if (!slideCount) {
-    return null
-  }
 
   useEffect(() => {
     if (!slideCount) return undefined
@@ -26,6 +23,10 @@ function PromoCarousel({ promotions = [] }) {
   const handleNext = useCallback(() => {
     setActiveSlide((prev) => (prev + 1) % slideCount)
   }, [slideCount])
+
+  if (!slideCount) {
+    return null
+  }
 
   return (
     <section className="promo-carousel">

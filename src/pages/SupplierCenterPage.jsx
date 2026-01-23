@@ -9,6 +9,7 @@ import "./Pages.css"
 import { getSupabaseClient } from "../lib/supabaseClient"
 
 
+const normalizeRole = (role) => String(role || "").trim().toLowerCase()
 
 const navItems = [
   { key: "dashboard", label: "📊 Dashboard" },
@@ -68,7 +69,7 @@ function SupplierCenterPage({ onNavigate }) {
           .eq("id", uid)
           .single()
 
-        if (profileErr || !profile || profile.role !== "supplier") {
+        if (profileErr || !profile || normalizeRole(profile.role) !== "supplier") {
           await supabase.auth.signOut()
           if (!cancelled) {
             setGateError("Supplier access only. Please sign in with a supplier account.")
@@ -400,9 +401,6 @@ function SupplierCenterPage({ onNavigate }) {
                     <div>
                       <h3 className="dash-label">Recent Sales</h3>
                       <p className="muted">Latest items sold from your catalog</p>
-                      <p className="muted" style={{ fontSize: "0.85rem" }}>
-                        Ordering by: <strong>{hasOrderItemsCreatedAt ? "created_at" : "id (created_at not in DB yet)"}</strong>
-                      </p>
                     </div>
                   </div>
 

@@ -1,7 +1,6 @@
 // store hours and location details with live status + holiday overrides
 import { useEffect, useMemo, useState } from "react"
 import "./StoreInfo.css"
-import { storeLocations as seedStoreLocations } from "../data/locations"
 
 const weekdayKeys = [
   "sunday",
@@ -31,10 +30,10 @@ const buildDateTime = (baseDate, timeStr) => {
 const formatTime = (dateObj) =>
   dateObj
     ? new Intl.DateTimeFormat("en-SG", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      }).format(dateObj)
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(dateObj)
     : ""
 
 const describeRange = (schedule, forDate) => {
@@ -138,8 +137,8 @@ const nextSpecial = (location, now) => {
   const windowText = upcoming.closed
     ? "Closed"
     : `${formatTime(buildDateTime(eventDate, upcoming.open))} – ${formatTime(
-        buildDateTime(eventDate, upcoming.close)
-      )}`
+      buildDateTime(eventDate, upcoming.close)
+    )}`
 
   return {
     ...upcoming,
@@ -159,8 +158,7 @@ function StoreInfo({ locations, onOpenMap }) {
 
   // ✅ use locations from props if available, otherwise seed fallback
   const activeLocations = useMemo(() => {
-    const src =
-      Array.isArray(locations) && locations.length > 0 ? locations : seedStoreLocations
+    const src = Array.isArray(locations) ? locations : []
     return src.map((row, idx) => normalizeLocation(row, idx))
   }, [locations])
 

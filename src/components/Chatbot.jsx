@@ -12,6 +12,7 @@ const FALLBACK_HISTORY_WINDOW = 12
 const MAX_CONTEXT_PRODUCTS = 20
 const MAX_CONTEXT_LOCATIONS = 3
 const MAX_PRODUCT_NAV_LINKS = 24
+const LOW_STOCK_THRESHOLD = 5
 
 const NAV_DIRECTIVE_REGEX = /\[\[NAV:([^\]\s]+)\]\]/gi
 
@@ -69,6 +70,18 @@ const RECIPE_IDEAS = [
       "Rice",
     ],
   },
+  {
+    keywords: ["pasta", "spaghetti", "noodles"],
+    title: "Easy pasta night",
+    description: "A quick pasta dinner with pantry staples.",
+    ingredients: [
+      "Pasta",
+      "Tomato sauce",
+      "Garlic",
+      "Olive oil",
+      "Parmesan",
+    ],
+  },
 ]
 
 const STATIC_NAV_TARGETS = [
@@ -76,10 +89,13 @@ const STATIC_NAV_TARGETS = [
   { label: "Sign up", path: "/signup" },
   { label: "Log in", path: "/login" },
   { label: "Cart", path: "/cart" },
+  { label: "Checkout", path: "/checkout" },
   { label: "Admin Center", path: "/admin" },
   { label: "Supplier Center", path: "/supplier" },
   { label: "Purchase history", path: "/history" },
   { label: "Order tracking", path: "/tracking" },
+  { label: "Help Center", path: "/help" },
+  { label: "Saved items", path: "/saved" },
   { label: "Feedback", path: "/feedback" },
   { label: "About", path: "/about" },
   { label: "Store locations", path: "/locations" },
@@ -103,6 +119,13 @@ const dayLabels = {
 const parseNumeric = (value) => {
   if (typeof value === "number" && Number.isFinite(value)) return value
   const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : null
+}
+
+const parsePrice = (value) => {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  const normalized = String(value ?? "").replace(/[^\d.-]/g, "")
+  const numeric = Number(normalized)
   return Number.isFinite(numeric) ? numeric : null
 }
 
@@ -204,6 +227,14 @@ const summarizeLocation = (location) => {
   return pieces.filter(Boolean).join(". ")
 }
 
+const summarizePromotions = (promotions = []) => {
+  if (!Array.isArray(promotions) || promotions.length === 0) return ""
+  return promotions
+    .slice(0, 5)
+    .map((promo, index) => `${index + 1}. ${promo.headline || "Deal"} — ${promo.detail || "Limited offer"}`)
+    .join("\n")
+}
+
 const summarizeLocations = (locations = []) => {
   if (!Array.isArray(locations) || locations.length === 0) return ""
   return locations
@@ -239,10 +270,17 @@ function Chatbot({
   catalog = [],
   storeLocations = [],
   userProfile = null,
+  promotions = [],
   orders = [],
+  cartItems = [],
   onNavigate = () => { },
   onAddToCart = () => { },
+  onRemoveFromCart = () => { },
+  onUpdateCartQuantity = () => { },
+  onLogout = () => { },
+  onOpenAdminProduct = () => { },
   onRecipeSuggestion = () => { },
+  onCategoryChange = () => { },
 }) {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState(initialMessages)
@@ -251,8 +289,15 @@ function Chatbot({
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState("")
   const [pendingCartChoice, setPendingCartChoice] = useState(null)
+  const [shoppingPrefs, setShoppingPrefs] = useState({
+    substitutionsAllowed: true,
+    substitutionNotes: [],
+    preferOrganic: false,
+  })
   const messagesEndRef = useRef(null)
   const isResizing = useRef(false)
+  const lastProductContext = useRef({ hint: "", items: [] })
+  const lowStockNoticeRef = useRef({ key: "", acknowledged: false })
   const [dimensions, setDimensions] = useState({ width: 480, height: 700 })
 
   const handleMouseMove = useCallback((e) => {
@@ -293,6 +338,65 @@ function Chatbot({
       .trim()
   }, [])
 
+  const getProductHaystack = useCallback(
+    (product) => {
+      if (!product) return ""
+      return normalizeCommandText(
+        [
+          product.name,
+          product.slug,
+          product.brand,
+          product.category,
+          product.tag,
+          product.desc,
+          product.description,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      )
+    },
+    [normalizeCommandText],
+  )
+
+  const getProductStock = useCallback((product) => {
+    const rawStock =
+      product?.onlineStock ??
+      product?.online_stock ??
+      product?.stock ??
+      product?.quantity ??
+      0
+    return parseNumeric(rawStock) ?? 0
+  }, [])
+
+  const findProductsByTerms = useCallback(
+    (terms = [], options = {}) => {
+      if (!Array.isArray(catalog) || catalog.length === 0) return []
+      const normalizedTerms = terms.map((term) => normalizeCommandText(term)).filter(Boolean)
+      if (normalizedTerms.length === 0) return []
+      const requireAll = options.requireAll ?? true
+      const inStockOnly = options.inStockOnly ?? false
+      const maxPrice = Number.isFinite(options.maxPrice) ? options.maxPrice : null
+
+      const matches = catalog.filter((product) => {
+        const haystack = getProductHaystack(product)
+        if (!haystack) return false
+        const hasAll = normalizedTerms.every((term) => haystack.includes(term))
+        const hasAny = normalizedTerms.some((term) => haystack.includes(term))
+        if (requireAll ? !hasAll : !hasAny) return false
+        if (inStockOnly && getProductStock(product) <= 0) return false
+        if (maxPrice !== null) {
+          const price = parsePrice(product.price)
+          if (price === null) return false
+          if (price > maxPrice) return false
+        }
+        return true
+      })
+
+      return matches.slice(0, options.limit || 10)
+    },
+    [catalog, getProductHaystack, getProductStock, normalizeCommandText],
+  )
+
   const checkIfPurchasedBefore = useCallback(
     (product) => {
       if (!product || !Array.isArray(orders)) return false
@@ -316,6 +420,78 @@ function Chatbot({
     [orders, normalizeCommandText],
   )
 
+  const rememberLastProducts = useCallback((hint, matches) => {
+    if (!matches || matches.length === 0) return
+    lastProductContext.current = {
+      hint: hint || "",
+      items: matches,
+    }
+  }, [])
+
+  const buildProductCardItems = useCallback(
+    (products = []) =>
+      products.map((product) => ({
+        product,
+        purchasedBefore: checkIfPurchasedBefore(product),
+      })),
+    [checkIfPurchasedBefore],
+  )
+
+  const buildProductListResponse = useCallback(
+    (title, description, products, quantity) => ({
+      type: "product-list",
+      title,
+      description,
+      quantity,
+      items: buildProductCardItems(products),
+    }),
+    [buildProductCardItems],
+  )
+
+  const extractMaxPrice = useCallback((text) => {
+    if (!text) return null
+    const match = String(text).match(
+      /\b(?:under|below|less than|<)\s*\$?\s*(\d+(?:\.\d+)?)/i,
+    )
+    if (!match) return null
+    const amount = Number(match[1])
+    return Number.isFinite(amount) ? amount : null
+  }, [])
+
+  const formatCartSummary = useCallback(() => {
+    if (!Array.isArray(cartItems) || cartItems.length === 0) {
+      return "Your cart is empty right now."
+    }
+    const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
+    const lines = cartItems
+      .slice(0, 6)
+      .map(
+        (item) =>
+          `- ${item.quantity} x ${item.name || item.slug} ($${item.price.toFixed(2)})`,
+      )
+    const more = cartItems.length > 6 ? "\n- ...and more items" : ""
+    return `Here is what is in your cart:\n${lines.join("\n")}${more}\nCart total: $${total.toFixed(2)}`
+  }, [cartItems])
+
+  const findProductFromOrderItem = useCallback(
+    (item) => {
+      if (!item || !Array.isArray(catalog)) return null
+      const slug = String(item.product_slug || "").toLowerCase()
+      const name = normalizeCommandText(item.product_name || item.name || "")
+      let match = null
+      if (slug) {
+        match = catalog.find((product) => String(product.slug || "").toLowerCase() === slug)
+      }
+      if (!match && name) {
+        match = catalog.find(
+          (product) => normalizeCommandText(product.name || "") === name,
+        )
+      }
+      return match || null
+    },
+    [catalog, normalizeCommandText],
+  )
+
   useEffect(() => {
     const greeting = GREETING_BY_LANG[language] || GREETING_BY_LANG.en
     setMessages((prev) => {
@@ -328,6 +504,39 @@ function Chatbot({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, isSending, error])
+
+  useEffect(() => {
+    if (userProfile?.role !== "admin") return
+    if (!Array.isArray(catalog) || catalog.length === 0) return
+    const lowStock = catalog.filter((product) => getProductStock(product) > 0 && getProductStock(product) <= LOW_STOCK_THRESHOLD)
+    if (lowStock.length === 0) return
+
+    const key = lowStock.map((product) => product.slug || product.name).join("|")
+    if (lowStockNoticeRef.current.key === key && lowStockNoticeRef.current.acknowledged) {
+      return
+    }
+
+    lowStockNoticeRef.current = { key, acknowledged: true }
+
+    const items = lowStock.slice(0, 6)
+    const message = {
+      id: Date.now(),
+      from: "bot",
+      type: "product-list",
+      title: "Low stock alert",
+      description: `These items are low in stock (≤ ${LOW_STOCK_THRESHOLD}).`,
+      items: items.map((product) => ({
+        product,
+        purchasedBefore: false,
+        actions: [
+          { label: "Manage in Admin", type: "admin" },
+        ],
+      })),
+    }
+
+    setOpen(true)
+    setMessages((prev) => [...prev, message])
+  }, [catalog, getProductStock, userProfile])
 
   // optional backend (keep if you still want a server to proxy / log / enforce policies)
   const backendEndpoint = useMemo(() => import.meta.env.VITE_BACKEND_CHAT_URL || "", [])
@@ -350,13 +559,18 @@ function Chatbot({
 
   const catalogSummary = useMemo(() => summarizeCatalog(catalog), [catalog])
   const locationSummary = useMemo(() => summarizeLocations(storeLocations), [storeLocations])
+  const promotionsSummary = useMemo(() => summarizePromotions(promotions), [promotions])
 
   const siteContext = useMemo(() => {
     const sections = []
     if (catalogSummary) sections.push(`Catalog:\n${catalogSummary}`)
     if (locationSummary) sections.push(`Store locations:\n${locationSummary}`)
+    if (promotionsSummary) sections.push(`Current Promotions:\n${promotionsSummary}`)
+    if (userProfile) {
+      sections.push(`Current User Context:\nName: ${userProfile.full_name || "Guest"}\nRole: ${userProfile.role || "customer"}\nTier: ${userProfile.membership_tier || "Member"}\nPoints: ${userProfile.membership_points || 0}`)
+    }
     return sections.join("\n\n")
-  }, [catalogSummary, locationSummary])
+  }, [catalogSummary, locationSummary, promotionsSummary, userProfile])
 
   const productNavigationTargets = useMemo(() => {
     if (!Array.isArray(catalog)) return []
@@ -385,7 +599,10 @@ function Chatbot({
   const stripNavigationDirectives = useCallback((text) => {
     if (typeof text !== "string") return { cleaned: "", directives: [] }
     const directives = []
-    const cleaned = text.replace(NAV_DIRECTIVE_REGEX, (_, rawPath) => {
+    const categories = []
+
+    // Support [[NAV:/path]]
+    let cleaned = text.replace(NAV_DIRECTIVE_REGEX, (_, rawPath) => {
       const normalized = (rawPath || "").trim()
       if (normalized) {
         const ensured = normalized.startsWith("/") ? normalized : `/${normalized}`
@@ -393,7 +610,17 @@ function Chatbot({
       }
       return ""
     })
-    return { cleaned: cleaned.trim(), directives }
+
+    // Support [[CAT:Category Name]]
+    cleaned = cleaned.replace(/\[\[CAT:([^\]]+)\]\]/gi, (_, catName) => {
+      const normalized = (catName || "").trim()
+      if (normalized) {
+        categories.push(normalized)
+      }
+      return ""
+    })
+
+    return { cleaned: cleaned.trim(), directives, categories }
   }, [])
 
   const safeNavigate = useCallback(
@@ -483,7 +710,10 @@ function Chatbot({
       lowered.match(/(?:make|cook|prepare|recipe for|ingredients for|how to make)\s+(.+)/) ||
       lowered.match(/(?:need|want)\s+to\s+(?:make|cook|prepare)\s+(.+)/)
     if (!match || !match[1]) return null
-    return match[1].replace(/[?.!]+$/, "").trim()
+    return match[1]
+      .replace(/\bto\s+(?:my\s+)?cart\b.*$/i, "")
+      .replace(/[?.!]+$/, "")
+      .trim()
   }, [])
 
   const parseRecipePayload = useCallback((rawText) => {
@@ -585,13 +815,28 @@ function Chatbot({
       const normalized = normalizeCommandText(text)
       const shortcuts = [
         { regex: /(go to|open|show)\s+(login|sign in)/, path: "/login", reply: "Heading to login for you." },
-        { regex: /(go to|open|show)\s+(supplier login|supplier|vendor)/, path: "/admin", reply: "Taking you to the admin center for supplier access." },
-        { regex: /(go to|open|show)\s+(cart|bag)/, path: "/cart", reply: "Opening your cart now." },
+        { regex: /(go to|open|show)\s+(supplier center|supplier dashboard|vendor portal)/, path: "/supplier", reply: "Opening the Supplier Center." },
+        { regex: /(go to|open|show)\s+(admin center|admin dashboard|control panel)/, path: "/admin", reply: "Opening the Admin Center." },
+        { regex: /(go to|open|show)\s+(cart|bag|basket)/, path: "/cart", reply: "Opening your cart now." },
+        { regex: /(go to|open|show)\s+(checkout|payment)/, path: "/checkout", reply: "Opening checkout." },
+        { regex: /(go to|open|show)\s+(help|support|customer service)/, path: "/help", reply: "Opening the Help Center." },
+        { regex: /(go to|open|show)\s+(saved items|saved list|favorites)/, path: "/saved", reply: "Opening your saved items." },
         { regex: /(go to|open|show)\s+(purchase history|order history|past orders)/, path: "/history", reply: "Showing your purchase history." },
-        { regex: /(go to|open|show)\s+(order tracking|track order)/, path: "/tracking", reply: "Taking you to order tracking." },
-        { regex: /(go to|open|show)\s+(membership|tier)/, path: "/membership", reply: "Opening your membership page." },
+        { regex: /(go to|open|show)\s+(order tracking|track order|delivery status)/, path: "/tracking", reply: "Taking you to order tracking." },
+        { regex: /(go to|open|show)\s+(membership|loyalty|tier)/, path: "/membership", reply: "Opening your membership page." },
+        { regex: /(go to|open|show)\s+(profile|my account|settings)/, path: "/profile", reply: "Going to your profile." },
+        { regex: /(go to|open|show)\s+(feedback|review|survey)/, path: "/feedback", reply: "Opening the feedback page." },
+        { regex: /(go to|open|show)\s+(locations?|stores?|where are you)/, path: "/locations", reply: "Showing our store locations." },
+        { regex: /(go to|open|show)\s+(about|info|company)/, path: "/about", reply: "Taking you to the about page." },
+        { regex: /(go to|open|show)\s+(terms|legal|privacy)/, path: "/terms", reply: "Showing our terms and privacy info." },
         { regex: /(recommend|reccomend|suggest|show)\s+(recipes?|meals?)/, path: "/recipes", reply: "Here are recipe ideas for you." },
-        { regex: /(supplier login|supplier|vendor)/, path: "/admin", reply: "Taking you to the admin center for supplier access." },
+        { regex: /(?:show|open|view|go to|i want|get|any|some|the|find)\s+(?:the\s+)?fresh produce/i, path: "/", reply: "Showing you our fresh produce category.", category: "Fresh Produce" },
+        { regex: /(?:show|open|view|go to|i want|get|any|some|the|find)\s+(?:the\s+)?pantry staples/i, path: "/", reply: "Opening the pantry staples section.", category: "Pantry Staples" },
+        { regex: /(?:show|open|view|go to|i want|get|any|some|the|find)\s+(?:the\s+)?beverages/i, path: "/", reply: "Heading to the beverages section.", category: "Beverages" },
+        { regex: /(?:show|open|view|go to|i want|get|any|some|the|find)\s+(?:the\s+)?drinks/i, path: "/", reply: "Heading to the beverages section.", category: "Beverages" },
+        { regex: /(?:show|open|view|go to|i want|get|any|some|the|find)\s+(?:the\s+)?home care/i, path: "/", reply: "Showing home care products.", category: "Home Care" },
+        { regex: /(?:show|open|view|go to|i want|get|any|some|the|find)\s+(?:the\s+)?snacks/i, path: "/", reply: "Opening snacks and treats.", category: "Snacks & Treats" },
+        { regex: /(?:show|open|view|go to|i want|get|any|some|the|find)\s+(?:the\s+)?treats/i, path: "/", reply: "Opening snacks and treats.", category: "Snacks & Treats" },
       ]
       const match = shortcuts.find((item) => item.regex.test(normalized))
       if (!match) {
@@ -601,10 +846,13 @@ function Chatbot({
         }
         return null
       }
+      if (match.category) {
+        onCategoryChange?.(match.category)
+      }
       safeNavigate(match.path)
       return match.reply
     },
-    [normalizeCommandText, safeNavigate],
+    [normalizeCommandText, safeNavigate, onCategoryChange],
   )
 
   const findProductByName = useCallback(
@@ -636,6 +884,8 @@ function Chatbot({
       if (!normalizedHint) return []
       if (!Array.isArray(catalog)) return []
       const tokens = normalizedHint.split(" ").filter((token) => token.length >= 3)
+      const isShortHint = normalizedHint.length <= 3
+      const shortRegex = isShortHint ? new RegExp(`\\b${normalizedHint}\\b`, "i") : null
 
       return catalog
         .map((product) => {
@@ -646,12 +896,23 @@ function Chatbot({
           const slug = normalizeCommandText(product.slug || "")
 
           let score = 0
+          const shortHit =
+            isShortHint &&
+            shortRegex &&
+            (shortRegex.test(name) ||
+              shortRegex.test(slug) ||
+              shortRegex.test(desc) ||
+              shortRegex.test(category) ||
+              shortRegex.test(brand))
+
           if (name === normalizedHint || slug === normalizedHint) score = 1000
-          else if (name.startsWith(normalizedHint)) score = 500
-          else if (name.includes(normalizedHint)) score = 100
-          else if (desc.includes(normalizedHint)) score = 50
-          else if (category.includes(normalizedHint) || brand.includes(normalizedHint)) score = 20
-          else if (tokens.some((token) => name.includes(token))) score = 10
+          else if (!isShortHint && name.startsWith(normalizedHint)) score = 500
+          else if (!isShortHint && name.includes(normalizedHint)) score = 100
+          else if (!isShortHint && desc.includes(normalizedHint)) score = 50
+          else if (!isShortHint && (category.includes(normalizedHint) || brand.includes(normalizedHint)))
+            score = 20
+          else if (shortHit) score = 60
+          else if (!isShortHint && tokens.some((token) => name.includes(token))) score = 10
 
           // Boost score if purchased before so it moves to top 5
           if (score > 0 && checkIfPurchasedBefore(product)) {
@@ -679,6 +940,7 @@ function Chatbot({
       if (matches.length === 0) {
         return `I couldn't find "${productHint}" in the catalog. Could you try another name?`
       }
+      rememberLastProducts(productHint, matches)
       if (matches.length === 1) {
         const product = matches[0]
         const previouslyPurchased = checkIfPurchasedBefore(product)
@@ -703,7 +965,7 @@ function Chatbot({
         })),
       }
     },
-    [findProductMatches, onAddToCart, checkIfPurchasedBefore],
+    [findProductMatches, onAddToCart, checkIfPurchasedBefore, rememberLastProducts],
   )
 
   const handlePendingCartChoice = useCallback(
@@ -749,12 +1011,15 @@ function Chatbot({
   const handleShowProductIntent = useCallback(
     (text) => {
       const match = text.match(
-        /(?:show|view|open|find|tell me about|search for|want|need|looking for|get me)\s+(?:me\s+)?(.+?)(?:$|\?)/i,
+        /(?:show|view|open|find|tell me about|search for|want|need|looking for|get me|do you have|carry|sell|provide)\s+(?:me\s+)?(?:any\s+)?(.+?)(?:$|\?)/i,
       )
       if (!match) return null
       const productHint = match[1].trim()
       const matches = findProductMatches(productHint)
-      if (matches.length === 0) return null
+      if (matches.length === 0) {
+        return `I couldn't find "${productHint}" in the catalog. Could you try another name?`
+      }
+      rememberLastProducts(productHint, matches)
 
       if (matches.length === 1) {
         const product = matches[0]
@@ -784,7 +1049,7 @@ function Chatbot({
         items,
       }
     },
-    [findProductMatches, safeNavigate, checkIfPurchasedBefore],
+    [findProductMatches, safeNavigate, checkIfPurchasedBefore, rememberLastProducts],
   )
 
   const handleSpecialIntent = useCallback(
@@ -795,6 +1060,483 @@ function Chatbot({
       const shortcutReply = handleShortcutNavigation(text)
       if (shortcutReply) return shortcutReply
       const normalized = normalizeCommandText(text)
+
+      if (/^(?:[a-z]+)$/.test(normalized) && normalized.length <= 10 && !/[aeiou]/.test(normalized)) {
+        return "I did not catch that. Could you rephrase your question?"
+      }
+
+      if (/(log\s*out|logout|sign\s*out)/.test(normalized)) {
+        onLogout?.()
+        safeNavigate("/")
+        return "You are logged out. Come back anytime."
+      }
+
+      if (/(update|change).*(delivery\s+address|address)/.test(normalized)) {
+        safeNavigate("/profile")
+        return "You can update your delivery address in your profile."
+      }
+
+      if (/(talk\s+to\s+a\s+human|human\s+agent|representative|customer\s+service|live\s+agent|support)/.test(normalized)) {
+        safeNavigate("/help")
+        return "I can connect you with a FreshMart teammate in the Help Center."
+      }
+
+      if (/(this\s+app\s+is\s+broken|app\s+is\s+broken|site\s+is\s+broken|broken|bug)/.test(normalized)) {
+        safeNavigate("/help")
+        return "Sorry about that. Please tell me what went wrong, or I can open the Help Center for you."
+      }
+
+      if (/you\s*('?re|are)\s+not\s+answering/.test(normalized)) {
+        return "Sorry about that. Tell me what you need and I will do my best."
+      }
+
+      if (/(i\s+made\s+a\s+mistake|made\s+a\s+mistake|wrong\s+order)/.test(normalized)) {
+        return "No worries. Tell me what to fix and I will help."
+      }
+
+      if (/(why\s+do\s+you\s+exist|why\s+are\s+you\s+here)/.test(normalized)) {
+        return "I am here to help you shop faster and answer store questions."
+      }
+
+      if (/(order\s+pizza|pizza)/.test(normalized) && /(order|deliver|buy)/.test(normalized)) {
+        return "I cannot order pizza, but I can help with groceries and FreshMart orders."
+      }
+
+      const cookMatch =
+        text.match(/what\s+can\s+i\s+(?:make|cook)(?:\s+with)?\s+(.+?)(?:\?|$)/i) ||
+        text.match(/i\s+(?:have|got)\s+(.+?)\s+what\s+can\s+i\s+(?:make|cook)/i)
+      if (cookMatch && cookMatch[1]) {
+        const ingredients = cookMatch[1]
+          .split(/,|and/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .slice(0, 6)
+        if (ingredients.length > 0) {
+          const suggestion = {
+            title: "Recipe ideas",
+            description: "Here are quick ideas based on what you have.",
+            ingredients,
+          }
+          onRecipeSuggestion?.(suggestion)
+          safeNavigate("/recipes")
+          return "Opening the recipes page with ideas based on your ingredients."
+        }
+      }
+
+      if (/(what('?s| is)?\s+in\s+my\s+cart|show\s+my\s+cart|view\s+my\s+cart|cart\s+items)/.test(normalized)) {
+        safeNavigate("/cart")
+        return formatCartSummary()
+      }
+
+      const removeMatch = text.match(/remove\s+(.+?)(?:\s+from)?\s+(?:my\s+)?cart/i)
+      if (removeMatch && removeMatch[1]) {
+        const productHint = removeMatch[1].trim()
+        const normalizedHint = normalizeCommandText(productHint)
+        const cartMatch =
+          cartItems.find((item) => normalizeCommandText(item.name || "") === normalizedHint) ||
+          cartItems.find((item) => normalizeCommandText(item.slug || "") === normalizedHint) ||
+          cartItems.find((item) => normalizeCommandText(item.name || "").includes(normalizedHint))
+        if (cartMatch) {
+          onRemoveFromCart?.(cartMatch.slug)
+          return `Removed ${cartMatch.name || cartMatch.slug} from your cart.`
+        }
+        return `I could not find "${productHint}" in your cart.`
+      }
+
+      const updateMatch = text.match(/(?:change|update|set)\s+(?:the\s+)?(?:quantity|qty)\s+of\s+(.+?)\s+to\s+(\d+)/i)
+      if (updateMatch && updateMatch[1]) {
+        const productHint = updateMatch[1].trim()
+        const nextQuantity = Number(updateMatch[2])
+        const normalizedHint = normalizeCommandText(productHint)
+        const cartMatch =
+          cartItems.find((item) => normalizeCommandText(item.name || "") === normalizedHint) ||
+          cartItems.find((item) => normalizeCommandText(item.slug || "") === normalizedHint) ||
+          cartItems.find((item) => normalizeCommandText(item.name || "").includes(normalizedHint))
+        if (!cartMatch) {
+          return `I could not find "${productHint}" in your cart.`
+        }
+        if (!Number.isFinite(nextQuantity) || nextQuantity <= 0) {
+          return "Tell me the quantity you want, for example: change quantity of milk to 2."
+        }
+        onUpdateCartQuantity?.(cartMatch.slug, nextQuantity)
+        return `Updated ${cartMatch.name || cartMatch.slug} to quantity ${nextQuantity}.`
+      }
+
+      if (/(change|update).*(delivery\s+time|delivery\s+slot)/.test(normalized)) {
+        safeNavigate("/checkout")
+        return "You can change delivery time during checkout. If the order is already placed, use the Help Center."
+      }
+
+      if (/(save|keep)\s+(?:this\s+)?cart\s+for\s+later/.test(normalized)) {
+        safeNavigate("/saved")
+        return "You can save items individually. I can take you to Saved Items if you want."
+      }
+
+      if (/(earliest|next)\s+delivery|delivery\s+window/.test(normalized)) {
+        safeNavigate("/checkout")
+        return "The earliest delivery times are shown during checkout."
+      }
+
+      if (/(same[-\s]?day)\s+delivery/.test(normalized)) {
+        safeNavigate("/checkout")
+        return "Same-day delivery depends on your area and cutoff times. Check availability at checkout."
+      }
+
+      if (/(delivery\s+fee|delivery\s+cost|shipping\s+fee)/.test(normalized)) {
+        safeNavigate("/checkout")
+        return "Delivery fees are shown at checkout."
+      }
+
+      if (/(switch|change)\s+(?:from\s+)?delivery\s+(?:to\s+)?pickup|pickup\s+instead/.test(normalized)) {
+        safeNavigate("/checkout")
+        return "You can switch to pickup during checkout. If your order is already placed, use the Help Center."
+      }
+
+      const substitutionMatch = text.match(/substitute\s+(.+?)\s+if\s+(.+?)\s+(?:is|isn't|is\s+not)?\s*unavailable/i)
+      if (substitutionMatch) {
+        const substitute = substitutionMatch[1].trim()
+        const original = substitutionMatch[2].trim()
+        setShoppingPrefs((prev) => ({
+          ...prev,
+          substitutionsAllowed: true,
+          substitutionNotes: [
+            ...prev.substitutionNotes,
+            `Substitute ${substitute} if ${original} is unavailable`,
+          ].slice(-5),
+        }))
+        return `Got it. I will substitute ${substitute} if ${original} is unavailable.`
+      }
+
+      if (/(don'?t|do\s+not)\s+substitute/.test(normalized)) {
+        setShoppingPrefs((prev) => ({
+          ...prev,
+          substitutionsAllowed: false,
+        }))
+        return "Understood. I will not substitute items."
+      }
+
+      if (/(remember|prefer).*(organic\s+produce|organic)/.test(normalized)) {
+        setShoppingPrefs((prev) => ({
+          ...prev,
+          preferOrganic: true,
+        }))
+        return "Noted. I will prioritize organic produce in recommendations."
+      }
+
+      if (/(my\s+preferences|substitution\s+preferences|shopping\s+preferences)/.test(normalized)) {
+        const substitutionLine = shoppingPrefs.substitutionsAllowed
+          ? "Substitutions are allowed."
+          : "Substitutions are not allowed."
+        const organicLine = shoppingPrefs.preferOrganic
+          ? "You prefer organic produce."
+          : "No organic preference set."
+        const notes = shoppingPrefs.substitutionNotes.length
+          ? `Notes: ${shoppingPrefs.substitutionNotes.join("; ")}`
+          : "No substitution notes yet."
+        return `${substitutionLine} ${organicLine} ${notes}`
+      }
+
+      if (/(apply|use)\s+(?:my\s+)?coupon|promo\s+code|voucher/.test(normalized)) {
+        safeNavigate("/checkout")
+        return "You can apply coupons during checkout. Share the code and I will add it."
+      }
+
+      if (/(reorder|order\s+again|buy\s+again|reorder\s+my\s+last|reorder\s+last)/.test(normalized)) {
+        const latest = Array.isArray(orders) ? orders[0] : null
+        const items = latest?.items || latest?.order_items || []
+        if (!latest || items.length === 0) {
+          return "I could not find a recent order to reorder."
+        }
+        const added = []
+        items.forEach((item) => {
+          const product = findProductFromOrderItem(item)
+          if (!product) return
+          const quantity = Number(item.quantity || 1)
+          onAddToCart?.(product, quantity)
+          added.push(product)
+        })
+        if (added.length === 0) {
+          return "I could not match items from your last order to the current catalog."
+        }
+        safeNavigate("/cart")
+        return `Added ${added.length} item${added.length === 1 ? "" : "s"} from your last order to your cart.`
+      }
+
+      if (/(reward\s+points|points\s+balance|loyalty\s+points)/.test(normalized)) {
+        const points = userProfile?.membership_points ?? 0
+        return `You have ${points} point${points === 1 ? "" : "s"} in your rewards balance.`
+      }
+
+      if (/(discounts?|sales?)\s+on\s+(fruit|fruits|vegetable|vegetables|produce)/.test(normalized)) {
+        if (!promotions || promotions.length === 0) {
+          return "There are no produce promotions listed right now, but check back soon."
+        }
+        const produceKeywords = ["fruit", "fruits", "vegetable", "vegetables", "produce"]
+        const promoItems = promotions
+          .map((promo) => {
+            const product = catalog.find((p) => p.slug === promo.slug)
+            if (!product) return null
+            const haystack = getProductHaystack(product)
+            if (!produceKeywords.some((kw) => haystack.includes(kw))) return null
+            return product
+          })
+          .filter(Boolean)
+        if (promoItems.length === 0) {
+          return "There are no produce promotions listed right now, but check back soon."
+        }
+        rememberLastProducts("produce promotions", promoItems)
+        return buildProductListResponse(
+          "Produce promotions",
+          "Here are current produce discounts.",
+          promoItems.slice(0, 5),
+        )
+      }
+
+      if (/(buy\s+one\s+get\s+one|bogo)/.test(normalized)) {
+        const hasBogo = (promotions || []).some((promo) =>
+          String(promo.headline || "").toLowerCase().includes("buy one") ||
+          String(promo.detail || "").toLowerCase().includes("buy one") ||
+          String(promo.headline || "").toLowerCase().includes("bogo") ||
+          String(promo.detail || "").toLowerCase().includes("bogo")
+        )
+        if (!hasBogo) {
+          return "I do not see any buy-one-get-one deals right now."
+        }
+        return "Yes, we have buy-one-get-one deals in the promotions list."
+      }
+
+      if (/(more\s+expensive|price\s+higher|costs\s+more).*(last\s+week|before)/.test(normalized)) {
+        return "I do not have historical price data to compare right now."
+      }
+
+      const maxPrice = extractMaxPrice(text)
+      const wantsCheapest = /(cheapest|lowest\s+price|least\s+expensive)/.test(normalized)
+      const wantsOrganic = normalized.includes("organic")
+      const wantsGlutenFree = normalized.includes("gluten free")
+      const wantsVegan = normalized.includes("vegan")
+      const wantsVegetarian = normalized.includes("vegetarian")
+      const wantsFrozen = normalized.includes("frozen")
+      const wantsSnack = normalized.includes("snack")
+      const wantsMeal = normalized.includes("meal")
+      const wantsMilk = normalized.includes("milk")
+      const wantsOliveOil = normalized.includes("olive oil")
+      const wantsOatMilk = normalized.includes("oat milk")
+
+      if (wantsCheapest && wantsMilk) {
+        const milkMatches = findProductsByTerms(["milk"], { requireAll: true, limit: 100 })
+        const priced = milkMatches
+          .map((product) => ({ product, price: parsePrice(product.price) }))
+          .filter((entry) => entry.price !== null)
+          .sort((a, b) => a.price - b.price)
+        if (priced.length === 0) {
+          return "I could not find any milk items with a listed price."
+        }
+        const cheapest = priced[0]
+        rememberLastProducts("cheapest milk", [cheapest.product])
+        return buildProductListResponse(
+          "Cheapest milk",
+          `Lowest price right now is $${cheapest.price.toFixed(2)}.`,
+          [cheapest.product],
+        )
+      }
+
+      if (wantsOatMilk) {
+        const matches = findProductsByTerms(["oat milk"], { requireAll: false, limit: 5 })
+        if (matches.length > 0) {
+          rememberLastProducts("oat milk", matches)
+          return buildProductListResponse(
+            "Oat milk options",
+            "Here are oat milk products we carry.",
+            matches,
+          )
+        }
+      }
+
+      if (wantsOliveOil && /(recommend|suggest|which\s+brand|what\s+brand)/.test(normalized)) {
+        const matches = findProductsByTerms(["olive oil"], { requireAll: true, limit: 5 })
+        if (matches.length === 0) {
+          return "I could not find olive oil in the catalog right now."
+        }
+        rememberLastProducts("olive oil", matches)
+        return buildProductListResponse(
+          "Olive oil picks",
+          "Here are a few olive oils to consider.",
+          matches,
+        )
+      }
+
+      if (wantsOrganic && normalized.includes("banana")) {
+        const matches = findProductsByTerms(["banana", "organic"], { requireAll: true, limit: 5 })
+        if (matches.length > 0) {
+          rememberLastProducts("organic bananas", matches)
+          return buildProductListResponse(
+            "Organic bananas",
+            "Here are organic banana options in stock.",
+            matches,
+          )
+        }
+        const fallback = findProductsByTerms(["banana"], { requireAll: true, limit: 5 })
+        if (fallback.length > 0) {
+          rememberLastProducts("bananas", fallback)
+          return buildProductListResponse(
+            "Bananas",
+            "I could not find organic bananas, but here are banana options.",
+            fallback,
+          )
+        }
+      }
+
+      if (wantsGlutenFree || wantsVegan || wantsVegetarian || wantsOrganic || wantsFrozen || wantsSnack) {
+        const terms = []
+        if (wantsGlutenFree) terms.push("gluten free")
+        if (wantsVegan) terms.push("vegan")
+        if (wantsVegetarian) terms.push("vegetarian")
+        if (wantsOrganic) terms.push("organic")
+        if (wantsFrozen) terms.push("frozen")
+        if (wantsSnack) terms.push("snack")
+        if (wantsMeal) terms.push("meal")
+        const matches = findProductsByTerms(terms, {
+          requireAll: true,
+          maxPrice,
+          limit: 6,
+        })
+        if (matches.length > 0) {
+          rememberLastProducts(terms.join(" "), matches)
+          const priceNote = maxPrice !== null ? ` under $${maxPrice.toFixed(2)}` : ""
+          return buildProductListResponse(
+            "Filtered picks",
+            `Here are ${terms.join(", ")} items${priceNote}.`,
+            matches,
+          )
+        }
+      }
+
+      if (/(in\s+stock|available\s+now|availability)/.test(normalized)) {
+        const stockMatch = text.match(/(?:is|are)\s+(.+?)\s+(?:in\s+stock|available)/i)
+        const productHint = stockMatch?.[1]?.trim()
+        if (productHint) {
+          const matches = findProductMatches(productHint)
+          if (matches.length > 0) {
+            rememberLastProducts(productHint, matches)
+            const product = matches[0]
+            const stockQty = getProductStock(product)
+            if (stockQty > 0) {
+              return `${product.name} is in stock online (${stockQty} available).`
+            }
+            return `${product.name} is currently out of stock online.`
+          }
+        }
+      }
+
+      if (/(when\s+will|restock|back\s+in\s+stock)/.test(normalized)) {
+        const restockMatch = text.match(/(?:when\s+will|restock|back\s+in\s+stock)\s+(.+?)(?:$|\?)/i)
+        const productHint = restockMatch?.[1]?.trim()
+        if (productHint) {
+          const matches = findProductMatches(productHint)
+          if (matches.length > 0) {
+            rememberLastProducts(productHint, matches)
+            const product = matches[0]
+            const stockQty = getProductStock(product)
+            if (stockQty > 0) {
+              return `${product.name} is currently in stock (${stockQty} available).`
+            }
+            return `I do not have a restock date for ${product.name}. Please check back soon.`
+          }
+        }
+        return "I do not have restock dates yet. Please check back soon."
+      }
+
+      if (/(larger\s+size|bigger\s+size|larger\s+pack|family\s+size)/.test(normalized)) {
+        const hint = lastProductContext.current.items[0]
+        if (hint) {
+          const baseTokens = normalizeCommandText(hint.name || "")
+            .split(" ")
+            .filter((token) => token.length >= 4)
+            .slice(0, 2)
+          const variants = baseTokens.length
+            ? findProductsByTerms(baseTokens, { requireAll: false, limit: 5 }).filter(
+                (item) => item.slug !== hint.slug,
+              )
+            : []
+          if (variants.length > 0) {
+            rememberLastProducts("larger size", variants)
+            return buildProductListResponse(
+              "Other sizes",
+              "Here are similar sizes or pack options.",
+              variants,
+            )
+          }
+          return "I do not see other sizes listed yet. Tell me the size you want and I will check."
+        }
+        return "Which item do you want a larger size for?"
+      }
+
+      if (/(nearest\s+store|available\s+at\s+my\s+store|store\s+availability)/.test(normalized)) {
+        safeNavigate("/locations")
+        return "I can check store availability once you pick a location. Opening store locations now."
+      }
+
+      if (/(why\s+is\s+this\s+item\s+unavailable|why\s+unavailable)/.test(normalized)) {
+        const hint = lastProductContext.current.items[0]
+        if (hint) {
+          const stockQty = getProductStock(hint)
+          if (stockQty <= 0) {
+            return `${hint.name} is temporarily out of stock online. Please check back soon.`
+          }
+        }
+        return "Some items go out of stock due to high demand or supplier delays."
+      }
+
+      if (/(similar\s+product|similar\s+item|similar\s+to)/.test(normalized)) {
+        const match = text.match(/similar\s+to\s+(.+?)(?:$|\?)/i)
+        const hint = match?.[1]?.trim()
+        const baseProduct =
+          (hint && findProductByName(hint)) || lastProductContext.current.items[0] || null
+        if (!baseProduct) return "Tell me which item you want a similar option for."
+        const category = normalizeCommandText(baseProduct.category || baseProduct.tag || "")
+        const similar = category
+          ? catalog.filter((product) => {
+              if (product.slug === baseProduct.slug) return false
+              return normalizeCommandText(product.category || product.tag || "") === category
+            })
+          : []
+        const list = similar.length > 0
+          ? similar.slice(0, 5)
+          : findProductMatches(baseProduct.name || baseProduct.slug)
+              .filter((product) => product.slug !== baseProduct.slug)
+              .slice(0, 5)
+        if (list.length === 0) {
+          return "I could not find similar options right now."
+        }
+        rememberLastProducts("similar products", list)
+        return buildProductListResponse(
+          "Similar products",
+          "Here are similar options you might like.",
+          list,
+        )
+      }
+
+      if (/(what\s+can\s+i\s+cook\s+with|quick\s+vegetarian\s+dinner|healthy\s+breakfast)/.test(normalized)) {
+        const ingredientMatch = text.match(/cook\s+with\s+(.+)/i)
+        const ingredients = ingredientMatch
+          ? ingredientMatch[1].split(/,|and/).map((item) => item.trim()).filter(Boolean)
+          : []
+        if (ingredients.length === 0 && normalized.includes("vegetarian")) {
+          ingredients.push("chickpeas", "vegetables", "rice")
+        } else if (ingredients.length === 0 && normalized.includes("breakfast")) {
+          ingredients.push("oats", "eggs", "fruit")
+        }
+        if (ingredients.length > 0) {
+          const suggestion = {
+            title: "Recipe idea",
+            description: "Here is a simple idea based on your ingredients.",
+            ingredients,
+          }
+          onRecipeSuggestion?.(suggestion)
+          safeNavigate("/")
+          return "I added a recipe-inspired filter to your catalog so you can add ingredients quickly."
+        }
+      }
 
       if (/(how many|count)\s+(stores|locations)/.test(normalized)) {
         const total = Array.isArray(storeLocations) ? storeLocations.length : 0
@@ -816,10 +1558,45 @@ function Chatbot({
         return `${orderSummary} I'll open the tracking page for you.`
       }
 
-      if (/(membership|tier|loyalty|status)/.test(normalized)) {
+      if (/(membership|tier|loyalty|status|who am i|my role|my profile)/.test(normalized)) {
         const tier = userProfile?.membership_tier || "FreshMart Member"
         const points = userProfile?.membership_points ?? 0
-        return `You're currently on the ${tier} tier with ${points} point${points === 1 ? "" : "s"}.`
+        const role = userProfile?.role || "customer"
+        const name = userProfile?.full_name || "valued customer"
+        return `You are logged in as ${name}. Your role is "${role}". You're currently on the ${tier} tier with ${points} point${points === 1 ? "" : "s"}.`
+      }
+
+      if (/\b(promotion|promo|sale|sales|discount|deal|deals|offer|savings|reduced)\b/i.test(normalized)) {
+        if (!promotions || promotions.length === 0) return "We don't have any specific promotions listed right now, but check back soon for fresh deals!"
+
+        const promoItems = promotions.map(promo => {
+          let product = catalog.find(p => p.slug === promo.slug)
+          if (!product && promo.headline) {
+            const hint = promo.headline.split('—')[0].trim().toLowerCase()
+            product = catalog.find(p => (p.name || "").toLowerCase().includes(hint))
+          }
+          if (!product) return null
+          return {
+            product,
+            purchasedBefore: checkIfPurchasedBefore(product)
+          }
+        }).filter(Boolean)
+
+        if (promoItems.length > 0) {
+          return {
+            type: "product-list",
+            title: "🔥 Current Promotions",
+            description: "Here are the best deals we have for you today:",
+            items: promoItems
+          }
+        }
+
+        const list = promotions.map(p => `- ${p.headline}`).join("\n")
+        return `Here are our current promotions:\n${list}`
+      }
+
+      if (/(help|what can you do|how to use|commands)/.test(normalized)) {
+        return "I can help you find products, check stock, manage your cart, and navigate the app. Try asking things like:\n- 'What's on promotion?'\n- 'Where is my order?'\n- 'Add 2 bananas to my cart'\n- 'Go to my purchase history'\n- 'Who am I?'\n\nI can also help with recipes or finding store locations!"
       }
 
       const addReply = handleAddToCartIntent(text)
@@ -836,6 +1613,7 @@ function Chatbot({
         const productHint = normalized.replace(/^(i|want|need|get|some|the|to|buy|looking|for|show|me)\s+/g, "").trim()
         const matches = findProductMatches(productHint)
         if (matches.length > 0) {
+          rememberLastProducts(productHint, matches)
           const items = matches.map((p) => ({
             product: p,
             purchasedBefore: checkIfPurchasedBefore(p),
@@ -874,9 +1652,27 @@ function Chatbot({
       handleAddToCartIntent,
       handleShowProductIntent,
       handlePendingCartChoice,
+      buildProductListResponse,
+      cartItems,
+      catalog,
+      extractMaxPrice,
+      findProductByName,
+      findProductFromOrderItem,
+      findProductsByTerms,
+      formatCartSummary,
+      getProductHaystack,
+      getProductStock,
       normalizeCommandText,
       orders,
+      onAddToCart,
+      onLogout,
+      onRecipeSuggestion,
+      onRemoveFromCart,
+      onUpdateCartQuantity,
+      promotions,
+      rememberLastProducts,
       safeNavigate,
+      shoppingPrefs,
       userProfile,
       storeLocations,
     ],
@@ -893,9 +1689,19 @@ function Chatbot({
 
       if (navigationSummary) {
         blocks.push(
-          `Allowed navigation commands:\n${navigationSummary}\nWhen the shopper asks to open any section above, confirm in your reply and append [[NAV:/path]] using the exact path shown. Do not invent routes or slugs, and use at most one NAV token per response.`,
+          `Allowed navigation commands:\n${navigationSummary}\n` +
+          `Special Categories:\n- Fresh Produce\n- Pantry Staples\n- Beverages\n- Home Care\n- Snacks & Treats\n\n` +
+          `Navigation Directives:\n` +
+          `1. For main pages: Append [[NAV:/path]] using paths from the list above.\n` +
+          `2. For categories (on the home page): Append [[CAT:Category Name]] using the exact category names shown above.\n` +
+          `3. Example for snacks: "Check out our snacks section [[CAT:Snacks & Treats]]"\n` +
+          `DO NOT use [[NAV:/recipes]] for inventory categories. Use at most one directive per response.`,
         )
       }
+
+      blocks.push(
+        `Visual Product Cards:\nCRITICAL: If you are recommending, mentioning, or describing specific items from the catalog, you MUST ALWAYS trigger a visual product card by appending [[PRODUCTS:slug1,slug2]] to your message. Use the exact slugs from the reference data. NEVER just list product prices or descriptions in plain text if a visual card can be used. Example: "Here is the fresh milk you asked for [[PRODUCTS:fresh-milk]]."`,
+      )
 
       blocks.push(
         'If the answer is not covered in the reference data, reply with: "I\'m not sure about that. Please check with a FreshMart associate."',
@@ -950,8 +1756,9 @@ function Chatbot({
           .find((entry) => entry && entry.trim())
           ?.trim() || ""
 
-      const { cleaned, directives } = stripNavigationDirectives(replyText)
+      const { cleaned, directives, categories } = stripNavigationDirectives(replyText)
       directives.forEach(safeNavigate)
+      categories.forEach(cat => onCategoryChange?.(cat))
 
       return cleaned || replyText || "I wasn't able to get a response from Groq."
     },
@@ -1004,10 +1811,39 @@ function Chatbot({
       if (!useBackend) {
         if (!groqSettings) throw new Error("Groq API key is missing (VITE_GROQ_API_KEY)")
         const history = [...messages, userMessage]
-        const replyText = await sendViaGroq(history)
+        const replyRaw = await sendViaGroq(history)
+
+        // Handle [[PRODUCTS:slug1,slug2]] directive
+        let finalReply = replyRaw
+        let productCard = null
+
+        const productMatch = replyRaw.match(/\[\[PRODUCTS:([^\]]+)\]\]/i)
+        if (productMatch) {
+          const slugs = productMatch[1].split(",").map(s => s.trim()).filter(Boolean)
+          const items = slugs.map(slug => {
+            const product = catalog.find(p => p.slug === slug)
+            if (!product) return null
+            return {
+              product,
+              purchasedBefore: checkIfPurchasedBefore(product)
+            }
+          }).filter(Boolean)
+
+          if (items.length > 0) {
+            productCard = {
+              type: "product-list",
+              title: "Recommended Items",
+              description: "Here are the items mentioned above:",
+              items
+            }
+          }
+          finalReply = replyRaw.replace(/\[\[PRODUCTS:[^\]]+\]\]/gi, "").trim()
+        }
+
         setMessages((prev) => [
           ...prev,
-          { id: Date.now() + 1, text: replyText, from: "bot" },
+          { id: Date.now() + 1, text: finalReply, from: "bot" },
+          ...(productCard ? [{ id: Date.now() + 2, from: "bot", ...productCard }] : [])
         ])
         return
       }
@@ -1088,6 +1924,10 @@ function Chatbot({
               Clear chat
             </button>
           </div>
+          <div className="chatbot-user-row">
+            <span>User:</span>
+            <strong>{userProfile?.role || "guest"}</strong>
+          </div>
 
           {/* keep language selector if your backend uses it; groq direct mode doesn't need it,
               but it doesn't hurt to keep it for future */}
@@ -1153,6 +1993,7 @@ function Chatbot({
                     <div className="chatbot-card-grid">
                       {message.items.map((entry) => {
                         const { product, purchasedBefore } = entry
+                        const actions = Array.isArray(entry.actions) ? entry.actions : null
                         return (
                           <div key={product.slug} className="chatbot-card-item">
                             {product.image && (
@@ -1166,20 +2007,41 @@ function Chatbot({
                                 </span>
                               )}
                               <div className="chatbot-card-actions">
-                                <button
-                                  type="button"
-                                  className="chatbot-card-btn"
-                                  onClick={() => onAddToCart?.(product, message.quantity || 1)}
-                                >
-                                  Add to cart
-                                </button>
-                                <button
-                                  type="button"
-                                  className="chatbot-card-btn secondary"
-                                  onClick={() => safeNavigate(`/product/${product.slug}`)}
-                                >
-                                  View
-                                </button>
+                                {actions && actions.length > 0 ? (
+                                  actions.map((action) => (
+                                    <button
+                                      key={`${product.slug}-${action.label}`}
+                                      type="button"
+                                      className={`chatbot-card-btn${action.type === "admin" ? " secondary" : ""}`}
+                                      onClick={() => {
+                                        if (action.type === "admin") {
+                                          onOpenAdminProduct?.(product)
+                                          return
+                                        }
+                                        onAddToCart?.(product, message.quantity || 1)
+                                      }}
+                                    >
+                                      {action.label}
+                                    </button>
+                                  ))
+                                ) : (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="chatbot-card-btn"
+                                      onClick={() => onAddToCart?.(product, message.quantity || 1)}
+                                    >
+                                      Add to cart
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="chatbot-card-btn secondary"
+                                      onClick={() => safeNavigate(`/product/${product.slug}`)}
+                                    >
+                                      View
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>

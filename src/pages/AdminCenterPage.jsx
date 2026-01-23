@@ -89,6 +89,7 @@ function AdminCenterPage({
   onProposalDecision,
   localFeedback = [],
   onProductUpsert,
+  adminQuery = "",
   storeLocations = [],
   onStoreUpsert,
   promotions = [],
@@ -188,6 +189,14 @@ function AdminCenterPage({
   useEffect(() => {
     setPromoDrafts(promotions || [])
   }, [promotions])
+
+  useEffect(() => {
+    if (!adminQuery) return
+    setActiveTab("products")
+    setQuery(adminQuery)
+    setEditingId(null)
+  }, [adminQuery])
+
 
   const handleLogout = async () => {
     setFlash("")
@@ -773,6 +782,7 @@ function AdminCenterPage({
                 </button>
               </div>
             </article>
+
           </>
         )}
 

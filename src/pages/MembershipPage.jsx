@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react"
 import "./MembershipPage.css"
-import { benefits, tiers } from "../data/membershipTiers"
-import { vouchers } from "../data/vouchers"
+import { benefits, tiers, vouchers } from "../lib/appConstants"
 import { FiAward, FiTag, FiCheckCircle, FiStar, FiZap } from "react-icons/fi"
 
 const formatTier = (tierId) => tiers.find((tier) => tier.id === tierId) || tiers[0]

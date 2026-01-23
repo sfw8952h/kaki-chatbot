@@ -2,10 +2,11 @@
 import { useEffect, useState } from "react"
 import "./Pages.css"
 import { getSupabaseClient } from "../lib/supabaseClient"
-import { FaGoogle} from "react-icons/fa"
+import { FaGoogle } from "react-icons/fa"
 
 
 const MEMBER_REMEMBER_EMAIL_KEY = "kaki_member_remember_email"
+const normalizeRole = (role) => String(role || "").trim().toLowerCase()
 
 function LoginPage({ onNavigate }) {
   const [email, setEmail] = useState("")
@@ -63,10 +64,16 @@ function LoginPage({ onNavigate }) {
     setResetStatus("")
     setLoading(true)
 
+    // ✅ Prevent auto-redirect during validation
+    try {
+      sessionStorage.setItem("suppress_login_redirect", "1")
+    } catch { }
+
     const cleanEmail = email.trim().toLowerCase()
 
     try {
       if (!cleanEmail || !password) {
+        setLoading(false)
         setError("Please enter email and password.")
         return
       }
@@ -80,9 +87,15 @@ function LoginPage({ onNavigate }) {
       if (signInError) throw signInError
 
       const userId = data?.user?.id
+      const authRole = normalizeRole(data?.user?.user_metadata?.role)
       if (!userId) {
         await supabase.auth.signOut()
         throw new Error("Login failed. Please try again.")
+      }
+
+      if (authRole === "supplier") {
+        await supabase.auth.signOut()
+        throw new Error("Supplier please use supplier login page")
       }
 
       // ✅ check role from profiles
@@ -92,6 +105,11 @@ function LoginPage({ onNavigate }) {
         .eq("id", userId)
         .maybeSingle()
 
+      if (profileError) {
+        await supabase.auth.signOut()
+        throw new Error("Unable to verify account role. Please try again.")
+      }
+
       // If no profile row, create a default customer profile instead of booting
       if (!profile) {
         await supabase.from("profiles").upsert({
@@ -99,19 +117,24 @@ function LoginPage({ onNavigate }) {
           full_name: data.user.user_metadata?.full_name || cleanEmail.split("@")[0],
           role: "customer",
         })
-      } else if (profile.role !== "customer" && profile.role !== "admin") {
-        // If they are a supplier but on the member page, we let them in but maybe they should be warned
-        // For now, let's not boot them to avoid the "logs me back out" loop
-        console.warn("Supplier logging in via member page")
+      } else if (normalizeRole(profile.role) === "supplier") {
+        await supabase.auth.signOut()
+        throw new Error("Supplier please use supplier login page")
       }
 
       // ✅ save email only if rememberMe
       persistRememberEmail(rememberMe, cleanEmail)
 
+      // ✅ Cleanup flag and navigate
+      try {
+        sessionStorage.removeItem("suppress_login_redirect")
+      } catch { }
+
       setStatus("Login successful. Redirecting...")
       onNavigate?.("/")
     } catch (err) {
       setError(err?.message || "Unable to login right now.")
+      // If we failed, App.jsx cleans up the flag when it sees !sessionUser
     } finally {
       setLoading(false)
     }

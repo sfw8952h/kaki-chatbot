@@ -22,11 +22,10 @@ import MembershipPage from "./pages/MembershipPage"
 import ProfilePage from "./pages/ProfilePage"
 import LocationsPage from "./pages/LocationsPage"
 import SupplierLoginPage from "./pages/SupplierLoginPage"
+import SupplierSignUpPage from "./pages/SupplierSignUpPage"
 import ResetPasswordPage from "./pages/ResetPasswordPage"
-import { POINTS_PER_DOLLAR, getTierByPoints } from "./data/membershipTiers"
+import { POINTS_PER_DOLLAR, getTierByPoints } from "./lib/appConstants"
 import { supabase } from "./lib/supabaseClient"
-import { products as seedProducts } from "./data/products"
-import { storeLocations as seedStoreLocations } from "./data/locations"
 import OrderHelpPage from "./pages/OrderHelpPage"
 import SavedItemsPage from "./pages/SavedItemsPage"
 import CheckoutPage from "./pages/CheckoutPage"
@@ -36,6 +35,8 @@ const toPriceNumber = (value) => {
   const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""))
   return Number.isFinite(parsed) ? parsed : 0
 }
+
+const normalizeRole = (role) => String(role || "").trim().toLowerCase()
 
 const createPromotionFromProduct = (product, index) => ({
   id: product.slug || `promo-${index}`,
@@ -92,21 +93,20 @@ function App() {
   const [proposals, setProposals] = useState([])
   const [feedbackEntries, setFeedbackEntries] = useState([])
   const [catalog, setCatalog] = useState([])
-  const [catalogSource, setCatalogSource] = useState("seed")
-  const [storeLocations, setStoreLocations] = useState(seedStoreLocations)
+  const [catalogSource, setCatalogSource] = useState("supabase")
+  const [storeLocations, setStoreLocations] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [cartItems, setCartItems] = useState([])
   const [savedItems, setSavedItems] = useState([])
   const [orders, setOrders] = useState([])
   const [recipeSuggestion, setRecipeSuggestion] = useState(null)
   const [activeCategory, setActiveCategory] = useState("All Categories")
+  const [adminProductQuery, setAdminProductQuery] = useState("")
 
   const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.toLowerCase()
 
   // ✅ promotions initialized correctly ONCE
-  const [promotions, setPromotions] = useState(() =>
-    buildDefaultPromotions(seedProducts)
-  )
+  const [promotions, setPromotions] = useState([])
 
   // Auth-only routes (no header/footer/chatbot/top links)
   const isAuthOnlyRoute = useMemo(() => {
@@ -178,9 +178,7 @@ function App() {
   // Load catalog from database
   useEffect(() => {
     if (!supabase) {
-      // Fallback to seed data if no database
-      setCatalog(seedProducts)
-      setCatalogSource("seed")
+      setCatalog([])
       return
     }
 
@@ -215,9 +213,8 @@ function App() {
         setCatalog(mapped)
         setCatalogSource("database")
       } catch (err) {
-        console.warn("Failed to load catalog from database, using seed data:", err)
-        setCatalog(seedProducts)
-        setCatalogSource("seed")
+        console.warn("Failed to load catalog from database:", err)
+        setCatalog([])
       }
     }
 
@@ -463,9 +460,9 @@ function App() {
         product.stock ??
         product.qty ??
         product.quantity ??
-        null
+        0
 
-      const onlineStock = Number.isFinite(Number(rawStock)) ? Number(rawStock) : 12
+      const onlineStock = Number.isFinite(Number(rawStock)) ? Number(rawStock) : 0
 
       const storeAvailability = Array.isArray(product.storeAvailability)
         ? product.storeAvailability
@@ -474,7 +471,7 @@ function App() {
       const badge = computeStockBadge(onlineStock, storeAvailability)
 
       return {
-        id: product.id || slug, // ✅ seed might not have id
+        id: product.id,
         slug,
         name: product.name || product.title,
         desc:
@@ -504,8 +501,7 @@ function App() {
   const loadCatalog = useCallback(async () => {
     // ✅ if supabase client isn't available, always show seed
     if (!supabase) {
-      setCatalog(seedProducts.map(mapAdminProductToFront))
-      setCatalogSource("seed")
+      setCatalog([])
       return
     }
 
@@ -516,16 +512,13 @@ function App() {
       .order("created_at", { ascending: false })
 
     if (error) {
-      console.warn("Unable to load products, falling back to seed data", error)
-      setCatalog(seedProducts.map(mapAdminProductToFront))
-      setCatalogSource("seed")
+      console.warn("Unable to load products", error)
+      setCatalog([])
       return
     }
 
-    // ✅ if supabase table is empty, fallback to seed
     if (!data || data.length === 0) {
-      setCatalog(seedProducts.map(mapAdminProductToFront))
-      setCatalogSource("seed")
+      setCatalog([])
       return
     }
 
@@ -596,8 +589,17 @@ function App() {
 
   // ✅ FIX: redirect away from login once authenticated
   useEffect(() => {
-    if (sessionUser && currentPath === "/login") {
+    let suppress = false
+    try {
+      suppress = sessionStorage.getItem("suppress_login_redirect") === "1"
+    } catch { }
+    if (sessionUser && currentPath === "/login" && !suppress) {
       navigate("/")
+    }
+    if (!sessionUser && suppress) {
+      try {
+        sessionStorage.removeItem("suppress_login_redirect")
+      } catch { }
     }
   }, [sessionUser, currentPath])
 
@@ -755,7 +757,7 @@ function App() {
 
   const loadStoreLocations = useCallback(async () => {
     if (!supabase) {
-      setStoreLocations(seedStoreLocations)
+      setStoreLocations([])
       return
     }
     const { data, error } = await supabase
@@ -763,12 +765,12 @@ function App() {
       .select("id, name, address, phone, email, base_hours, special_hours")
       .order("name", { ascending: true })
     if (error) {
-      console.warn("Unable to load store hours, using seed data", error)
-      setStoreLocations(seedStoreLocations)
+      console.warn("Unable to load store hours", error)
+      setStoreLocations([])
       return
     }
     if (!data || data.length === 0) {
-      setStoreLocations(seedStoreLocations)
+      setStoreLocations([])
       return
     }
     setStoreLocations(data.map(mapStoreRow))
@@ -926,6 +928,15 @@ function App() {
     },
     [currentPath],
   )
+
+  const handleOpenAdminProduct = useCallback(
+    (product) => {
+      const hint = product?.name || product?.slug || ""
+      setAdminProductQuery(hint)
+      navigate("/admin")
+    },
+    [navigate],
+  )
   const filteredCatalog = useMemo(() => {
     const normalize = (value) =>
       String(value || "")
@@ -1010,7 +1021,7 @@ function App() {
   }, [catalog, catalogSource])
 
   const mainContent = useMemo(() => {
-    const role = profile?.role || "customer"
+    const role = normalizeRole(profile?.role) || "customer"
     const isAdmin = role === "admin"
     const isSupplier = role === "supplier"
 
@@ -1070,6 +1081,7 @@ function App() {
           onFeedbackDelete={handleFeedbackDeleted}
           promotions={promotions}
           onPromotionsUpdate={handlePromotionsUpdate}
+          adminQuery={adminProductQuery}
         />
       )
     }
@@ -1087,6 +1099,9 @@ function App() {
         )
       }
       return <SupplierCenterPage onSubmitProposal={handleProposalSubmit} proposals={proposals} />
+    }
+    if (currentPath === "/supplier-signup") {
+      return <SupplierSignUpPage onNavigate={navigate} />
     }
     if (currentPath === "/history")
       return <PurchaseHistoryPage user={sessionUser} onNavigate={navigate} orders={orders} />
@@ -1218,12 +1233,12 @@ function App() {
       {/* Hide top links on auth-only routes */}
       {!isAuthOnlyRoute && (
         <div className="top-edge-links">
-          {profile?.role === "supplier" && (
+          {normalizeRole(profile?.role) === "supplier" && (
             <button className="top-link" type="button" onClick={() => navigate("/supplier")}>
               Supplier Center
             </button>
           )}
-          {profile?.role === "admin" && (
+          {normalizeRole(profile?.role) === "admin" && (
             <button className="top-link" type="button" onClick={() => navigate("/admin")}>
               Admin Center
             </button>
@@ -1335,9 +1350,16 @@ function App() {
           storeLocations={storeLocations}
           userProfile={profile}
           orders={orders}
+          cartItems={cartItems}
           onNavigate={navigate}
           onAddToCart={addToCart}
+          onRemoveFromCart={removeFromCart}
+          onUpdateCartQuantity={updateCartQuantity}
+          onLogout={handleLogout}
+          onOpenAdminProduct={handleOpenAdminProduct}
           onRecipeSuggestion={setRecipeSuggestion}
+          promotions={promotions}
+          onCategoryChange={setActiveCategory}
         />
       )}
     </div>

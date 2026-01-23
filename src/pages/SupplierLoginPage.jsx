@@ -3,6 +3,7 @@ import "./Pages.css"
 import { getSupabaseClient } from "../lib/supabaseClient"
 
 const SUPPLIER_REMEMBER_EMAIL_KEY = "kaki_supplier_remember_email"
+const normalizeRole = (role) => String(role || "").trim().toLowerCase()
 
 function SupplierLoginPage({ onNavigate }) {
   const [email, setEmail] = useState("")
@@ -70,7 +71,7 @@ function SupplierLoginPage({ onNavigate }) {
         throw new Error("No profile found for this account. Please sign up first.")
       }
 
-      if (profile.role !== "supplier") {
+      if (normalizeRole(profile.role) !== "supplier") {
         // Strict separation: if not a supplier (even if admin), force them to use the main login
         await supabase.auth.signOut()
         throw new Error("This account isn't a supplier. Please use the main login page.")

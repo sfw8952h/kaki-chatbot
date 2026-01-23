@@ -2,7 +2,7 @@
 import { useMemo, useState, useEffect, useCallback } from "react"
 import "./ProfilePage.css"
 import { getSupabaseClient } from "../lib/supabaseClient"
-import { getTierByPoints, tiers } from "../data/membershipTiers"
+import { getTierByPoints, tiers } from "../lib/appConstants"
 import {
   FiUser,
   FiMail,
