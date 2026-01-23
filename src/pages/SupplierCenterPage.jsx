@@ -25,6 +25,7 @@ function SupplierCenterPage({ onNavigate }) {
     category: "",
     image: "",
     stock: "",
+    description: "",
   })
   const [statusMsg, setStatusMsg] = useState("")
   const [activeTab, setActiveTab] = useState("dashboard")
@@ -260,7 +261,7 @@ function SupplierCenterPage({ onNavigate }) {
         image: form.image.trim() || "https://via.placeholder.com/420x520.png?text=Product",
         stock: parseInt(form.stock || "0", 10) || 0,
         status: "pending",
-        description: `Supplier product: ${form.name}`,
+        description: form.description.trim() || `Supplier product: ${form.name}`,
       }
 
       const { data, error } = await supabase.from("products").insert(payload).select().single()
@@ -268,7 +269,7 @@ function SupplierCenterPage({ onNavigate }) {
 
       setMyProducts((prev) => [data, ...prev])
       setStatusMsg("Product submitted successfully!")
-      setForm({ name: "", price: "", category: "", image: "", stock: "" })
+      setForm({ name: "", price: "", category: "", image: "", stock: "", description: "" })
     } catch (err) {
       console.error("Submission failed:", err)
       setStatusMsg("Failed to submit product. " + (err?.message || "Unknown error"))
@@ -591,6 +592,16 @@ function SupplierCenterPage({ onNavigate }) {
                       value={form.category}
                       onChange={(e) => setForm((prev) => ({ ...prev, category: e.target.value }))}
                       placeholder="Produce"
+                    />
+                  </label>
+
+                  <label>
+                    Description
+                    <textarea
+                      rows={3}
+                      value={form.description}
+                      onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+                      placeholder="Fresh organic chicken breast..."
                     />
                   </label>
 
