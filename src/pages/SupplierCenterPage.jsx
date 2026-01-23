@@ -29,6 +29,14 @@ function SupplierCenterPage({ onNavigate }) {
   const [statusMsg, setStatusMsg] = useState("")
   const [activeTab, setActiveTab] = useState("dashboard")
 
+  // Handle incoming tab requests
+  useEffect(() => {
+    if (window.activeSupplierTab) {
+      setActiveTab(window.activeSupplierTab)
+      window.activeSupplierTab = null
+    }
+  }, [])
+
   // Support form state
   const [supportSubject, setSupportSubject] = useState("")
   const [supportDetails, setSupportDetails] = useState("")

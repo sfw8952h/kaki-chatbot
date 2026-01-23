@@ -303,6 +303,8 @@ function Chatbot({
   const lowStockNoticeRef = useRef({ key: "", acknowledged: false })
   const [dimensions, setDimensions] = useState({ width: 480, height: 700 })
   const [adminStats, setAdminStats] = useState(null)
+  const [supplierStats, setSupplierStats] = useState(null)
+  const [interactionState, setInteractionState] = useState({ mode: "idle", data: {} })
 
   useEffect(() => {
     if (userProfile?.role !== "admin") {
@@ -326,6 +328,49 @@ function Chatbot({
       }
     }
     fetchStats()
+  }, [userProfile])
+
+  useEffect(() => {
+    if (userProfile?.role !== "supplier") {
+      setSupplierStats(null)
+      return
+    }
+
+    const fetchSupplierStats = async () => {
+      try {
+        const supabase = getSupabaseClient()
+        // Fetch products to calculate inventory value
+        const { data: products } = await supabase
+          .from("products")
+          .select("id, price, stock, status")
+          .eq("supplier_id", userProfile.id)
+
+        const safeProducts = products || []
+        const inventoryValue = safeProducts
+          .filter((p) => p.status !== "rejected")
+          .reduce((sum, p) => sum + (Number(p.price) || 0) * (Number(p.stock) || 0), 0)
+
+        // Fetch sales to calculate revenue
+        const productIds = safeProducts.map((p) => p.id)
+        let revenue = 0
+        if (productIds.length > 0) {
+          const { data: sales } = await supabase
+            .from("order_items")
+            .select("unit_price, quantity")
+            .in("product_id", productIds)
+
+          revenue = (sales || []).reduce(
+            (sum, item) => sum + (Number(item.unit_price || 0) * Number(item.quantity || 1)),
+            0,
+          )
+        }
+
+        setSupplierStats({ inventoryValue, revenue })
+      } catch (err) {
+        console.warn("Failed to fetch supplier stats for chatbot", err)
+      }
+    }
+    fetchSupplierStats()
   }, [userProfile])
 
   const handleMouseMove = useCallback((e) => {
@@ -631,9 +676,15 @@ function Chatbot({
         const complaintsCount = adminStats?.complaints ?? "Unknown"
         sections.push(`[ADMIN INTERNAL STATS]:\nTotal SKUs: ${totalSkus}\nTotal Units On Hand: ${totalUnits}\nTotal Complaints: ${complaintsCount}`)
       }
+
+      if (userProfile.role === "supplier") {
+        const rev = supplierStats?.revenue || 0
+        const val = supplierStats?.inventoryValue || 0
+        sections.push(`[SUPPLIER STATS]:\nTotal Revenue: $${rev}\nInventory Value: $${val}\nYou can ask about these stats, file a complaint, or add a product.`)
+      }
     }
     return sections.join("\n\n")
-  }, [catalogSummary, locationSummary, promotionsSummary, userProfile])
+  }, [catalogSummary, locationSummary, promotionsSummary, userProfile, supplierStats])
 
   const productNavigationTargets = useMemo(() => {
     if (!Array.isArray(catalog)) return []
@@ -1115,15 +1166,68 @@ function Chatbot({
     [findProductMatches, safeNavigate, checkIfPurchasedBefore, rememberLastProducts],
   )
 
+  const handleInteractionStep = useCallback(async (text) => {
+    const { mode, data } = interactionState
+    const supabase = getSupabaseClient()
+    const normalized = normalizeCommandText(text)
+
+    if (normalized === "cancel" || normalized === "stop") {
+      setInteractionState({ mode: "idle", data: {} })
+      return "Operation cancelled."
+    }
+
+    // --- File Complaint Flow (REMOVED: Use redirect) ---
+    // if (mode === "complaint_subject") ...
+
+    return null
+  }, [interactionState, normalizeCommandText, userProfile])
+
+
+
   const handleSpecialIntent = useCallback(
-    (text) => {
+    async (text) => {
+      // 1. Check if we are in a multi-step flow
+      if (interactionState.mode !== "idle") {
+        const stepReply = await handleInteractionStep(text)
+        if (stepReply) return stepReply
+      }
+
       if (!text) return null
       const pendingReply = handlePendingCartChoice(text)
       if (pendingReply) return pendingReply
       const shortcutReply = handleShortcutNavigation(text)
       if (shortcutReply) return shortcutReply
       const normalized = normalizeCommandText(text)
+      const isActiveUser = userProfile != null
       const isAdmin = userProfile?.role === "admin"
+      const isSupplier = userProfile?.role === "supplier"
+
+      // ---------------- SUPPLIER COMMANDS ----------------
+      if (isSupplier) {
+        if (/(total\s+sales|my\s+sales|revenue)/.test(normalized)) {
+          safeNavigate("/supplier")
+          return "Here is the dashboard where you can see your sales info."
+        }
+
+        if (/(inventory\s+value|stock\s+value|stock|inventory)/.test(normalized)) {
+          window.activeSupplierTab = "inventory"
+          safeNavigate("/supplier")
+          return "Here is the inventory tab where you can see your stock info."
+        }
+
+        if (/(file|make|submit)\s+(a\s+)?(complaint|report|issue)|(contact\s+admin)/.test(normalized)) {
+          window.activeSupplierTab = "support"
+          safeNavigate("/supplier")
+          return "Opening the Support tab in Supplier Center. You can file your complaint there."
+        }
+
+        if (/(add|create|new)\s+(a\s+)?(product|item)/.test(normalized)) {
+          window.activeSupplierTab = "products"
+          safeNavigate("/supplier")
+          return "Opening the Supplier Center. You can add new products in the Products tab."
+        }
+      }
+      // -------------------------------------------------
 
       // ---------------- ADMIN COMMANDS ----------------
       if (isAdmin) {
@@ -1899,7 +2003,7 @@ function Chatbot({
         return
       }
 
-      const intentReply = handleSpecialIntent(trimmed)
+      const intentReply = await handleSpecialIntent(trimmed)
       if (intentReply && typeof intentReply === "object") {
         setMessages((prev) => [...prev, { id: Date.now() + 1, from: "bot", ...intentReply }])
         return
