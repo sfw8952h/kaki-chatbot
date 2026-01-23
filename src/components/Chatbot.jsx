@@ -281,6 +281,7 @@ function Chatbot({
   onOpenAdminProduct = () => { },
   onRecipeSuggestion = () => { },
   onCategoryChange = () => { },
+  onProductUpdate = () => { },
 }) {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState(initialMessages)
@@ -508,34 +509,62 @@ function Chatbot({
   useEffect(() => {
     if (userProfile?.role !== "admin") return
     if (!Array.isArray(catalog) || catalog.length === 0) return
-    const lowStock = catalog.filter((product) => getProductStock(product) > 0 && getProductStock(product) <= LOW_STOCK_THRESHOLD)
-    if (lowStock.length === 0) return
 
-    const key = lowStock.map((product) => product.slug || product.name).join("|")
+    const outOfStock = catalog.filter((product) => getProductStock(product) <= 0)
+    const lowStock = catalog.filter((product) => getProductStock(product) > 0 && getProductStock(product) <= LOW_STOCK_THRESHOLD)
+
+    if (outOfStock.length === 0 && lowStock.length === 0) return
+
+    // Create a stable key based on the IDs of affected items to prevent duplicate alerts on re-renders
+    const key = [...outOfStock, ...lowStock]
+      .map((product) => product.id || product.slug)
+      .sort()
+      .join("|")
+
     if (lowStockNoticeRef.current.key === key && lowStockNoticeRef.current.acknowledged) {
       return
     }
 
     lowStockNoticeRef.current = { key, acknowledged: true }
+    setOpen(true)
 
-    const items = lowStock.slice(0, 6)
-    const message = {
-      id: Date.now(),
-      from: "bot",
-      type: "product-list",
-      title: "Low stock alert",
-      description: `These items are low in stock (≤ ${LOW_STOCK_THRESHOLD}).`,
-      items: items.map((product) => ({
-        product,
-        purchasedBefore: false,
-        actions: [
-          { label: "Manage in Admin", type: "admin" },
-        ],
-      })),
+    const newMessages = []
+
+    // 1. Out of Stock Alert
+    if (outOfStock.length > 0) {
+      newMessages.push({
+        id: Date.now(),
+        from: "bot",
+        type: "product-list",
+        title: "🔴 Out of Stock Alert",
+        description: `These ${outOfStock.length} items have 0 stock!`,
+        items: outOfStock.slice(0, 6).map((product) => ({
+          product,
+          purchasedBefore: false,
+          actions: [{ label: "Manage in Admin", type: "admin" }],
+        })),
+      })
     }
 
-    setOpen(true)
-    setMessages((prev) => [...prev, message])
+    // 2. Low Stock Alert
+    if (lowStock.length > 0) {
+      newMessages.push({
+        id: Date.now() + 50, // Slight offset
+        from: "bot",
+        type: "product-list",
+        title: "⚠️ Low Stock Alert",
+        description: `These ${lowStock.length} items are running low (≤ ${LOW_STOCK_THRESHOLD}).`,
+        items: lowStock.slice(0, 6).map((product) => ({
+          product,
+          purchasedBefore: false,
+          actions: [{ label: "Restock via Chat", type: "admin" }], // Differentiate label if desired
+        })),
+      })
+    }
+
+    if (newMessages.length > 0) {
+      setMessages((prev) => [...prev, ...newMessages])
+    }
   }, [catalog, getProductStock, userProfile])
 
   // optional backend (keep if you still want a server to proxy / log / enforce policies)
@@ -1060,6 +1089,47 @@ function Chatbot({
       const shortcutReply = handleShortcutNavigation(text)
       if (shortcutReply) return shortcutReply
       const normalized = normalizeCommandText(text)
+      const isAdmin = userProfile?.role === "admin"
+
+      // ---------------- ADMIN COMMANDS ----------------
+      if (isAdmin) {
+        // Add stock to low stock items
+        if (/(add|update|restock|fill).*(stock)/i.test(normalized) && /(low|items|products|inventory)/i.test(normalized)) {
+          if (!Array.isArray(catalog)) return "I can't access the catalog right now."
+          // find items <= LOW_STOCK_THRESHOLD (5)
+          const lowStockItems = catalog.filter((p) => getProductStock(p) <= LOW_STOCK_THRESHOLD)
+
+          if (lowStockItems.length === 0) {
+            return `All items are well stocked right now (above ${LOW_STOCK_THRESHOLD} units).`
+          }
+
+          // Try to allow generic "add stock" (default 20) or specific "add 5 stock"
+          const amountMatch = normalized.match(/(?:add|update|fill)\s+(\d+)/i) || normalized.match(/(\d+)\s+stock/i)
+          const validQuantity = amountMatch ? parseInt(amountMatch[1], 10) : 20
+
+          let updatedCount = 0
+          lowStockItems.forEach((p) => {
+            const current = getProductStock(p)
+            const nextStock = current + validQuantity
+            onProductUpdate({ ...p, stock: nextStock })
+            updatedCount++
+          })
+
+          return `I've added ${validQuantity} units of stock to ${updatedCount} low-stock items. Inventory updated.`
+        }
+
+        // Add proper navigation for admin tasks
+        if (/(add|create|new|make).*(promotion|promo|deal|offer)/i.test(normalized)) {
+          onOpenAdminProduct?.("TAB:promotions")
+          return "Opening the Promotions tab in Admin Center. You can add your new deal there."
+        }
+
+        if (/(change|update|edit|modify).*(store|location|hours|branch)/i.test(normalized)) {
+          onOpenAdminProduct?.("TAB:stores")
+          return "Opening the Store Hours tab in Admin Center."
+        }
+      }
+      // ----------------------------------------------
 
       if (/^(?:[a-z]+)$/.test(normalized) && normalized.length <= 10 && !/[aeiou]/.test(normalized)) {
         return "I did not catch that. Could you rephrase your question?"
@@ -1455,8 +1525,8 @@ function Chatbot({
             .slice(0, 2)
           const variants = baseTokens.length
             ? findProductsByTerms(baseTokens, { requireAll: false, limit: 5 }).filter(
-                (item) => item.slug !== hint.slug,
-              )
+              (item) => item.slug !== hint.slug,
+            )
             : []
           if (variants.length > 0) {
             rememberLastProducts("larger size", variants)
@@ -1496,15 +1566,15 @@ function Chatbot({
         const category = normalizeCommandText(baseProduct.category || baseProduct.tag || "")
         const similar = category
           ? catalog.filter((product) => {
-              if (product.slug === baseProduct.slug) return false
-              return normalizeCommandText(product.category || product.tag || "") === category
-            })
+            if (product.slug === baseProduct.slug) return false
+            return normalizeCommandText(product.category || product.tag || "") === category
+          })
           : []
         const list = similar.length > 0
           ? similar.slice(0, 5)
           : findProductMatches(baseProduct.name || baseProduct.slug)
-              .filter((product) => product.slug !== baseProduct.slug)
-              .slice(0, 5)
+            .filter((product) => product.slug !== baseProduct.slug)
+            .slice(0, 5)
         if (list.length === 0) {
           return "I could not find similar options right now."
         }
@@ -2084,7 +2154,7 @@ function Chatbot({
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleKeyDown}
             />
-            <button className="send-btn" onClick={sendMessage} disabled={isSending}>
+            <button className="send-btn" onClick={() => sendMessage()} disabled={isSending}>
               Send
             </button>
           </div>

@@ -172,6 +172,7 @@ function AdminCenterPage({
     detail: "",
     slug: "",
     note: "",
+    image: "",
   })
 
   const ensureSession = useCallback(async () => {
@@ -192,10 +193,21 @@ function AdminCenterPage({
 
   useEffect(() => {
     if (!adminQuery) return
-    setActiveTab("products")
-    setQuery(adminQuery)
+
+    if (adminQuery.startsWith("TAB:")) {
+      const targetTab = adminQuery.replace("TAB:", "")
+      const valid = navLinks.some(l => l.key === targetTab) ? targetTab : "dashboard"
+      // Only switch tab if needed, and clear query for tab navigation
+      if (activeTab !== valid) setActiveTab(valid)
+      setQuery("")
+    } else {
+      // For searching/filtering products
+      if (activeTab !== "products") setActiveTab("products")
+      // Re-apply query to ensure it persists across product loads
+      setQuery(adminQuery)
+    }
     setEditingId(null)
-  }, [adminQuery])
+  }, [adminQuery, products]) // Re-run if products load/change to ensure filter applies
 
 
   const handleLogout = async () => {
@@ -250,6 +262,7 @@ function AdminCenterPage({
       detail: "",
       slug: "",
       note: "",
+      image: "",
     })
   }
 
@@ -268,6 +281,7 @@ function AdminCenterPage({
       badge: promoForm.badge?.trim() || "Featured deal",
       headline,
       detail: (promoForm.detail || "").trim(),
+      image: (promoForm.image || "").trim(),
       note: (promoForm.note || "").trim(),
       actionLabel: "Go to product",
       actionUrl: `/product/${slug}`,
@@ -290,6 +304,7 @@ function AdminCenterPage({
       detail: promo.detail || "",
       slug: promo.slug || "",
       note: promo.note || "",
+      image: promo.image || "",
     })
   }
 
@@ -1100,6 +1115,67 @@ function AdminCenterPage({
               {promoDrafts.length === 0 && <p>No active promotions yet.</p>}
             </div>
 
+            <div style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px", marginBottom: "1.5rem" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "#6c757d" }}>
+                Auto-fill from Catalog
+              </label>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <select
+                  style={{ flex: 1, padding: "0.6rem", borderRadius: "4px", border: "1px solid #ced4da" }}
+                  defaultValue=""
+                  onChange={(e) => {
+                    const pid = e.target.value
+                    const p = products.find((x) => x.id === pid)
+                    if (p) {
+                      setPromoForm((prev) => ({
+                        ...prev,
+                        slug: p.slug,
+                        headline: p.name,
+                        detail: p.description ? p.description.slice(0, 100) : `Great deals on ${p.name}`,
+                        badge: "Featured",
+                        image: p.image || "",
+                      }))
+                      // reset selection so same product can be picked again if needed
+                      e.target.value = ""
+                    }
+                  }}
+                >
+                  <option value="" disabled>-- Select a product to populate form --</option>
+                  {[...products]
+                    .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setPromoForm({
+                    actionLabel: "Shop Now",
+                    actionUrl: "",
+                    badge: "",
+                    headline: "",
+                    detail: "",
+                    slug: "",
+                    note: "",
+                    image: "",
+                  })}
+                  style={{
+                    padding: "0 1rem",
+                    border: "1px solid #ced4da",
+                    borderRadius: "4px",
+                    background: "white",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    color: "#495057"
+                  }}
+                >
+                  Clear Form
+                </button>
+              </div>
+            </div>
+
             <form className="signup-form" onSubmit={handlePromoSubmit}>
               <div className="dash-duo">
                 <label>
@@ -1121,6 +1197,16 @@ function AdminCenterPage({
                   />
                 </label>
               </div>
+
+              <label>
+                Image URL
+                <input
+                  type="text"
+                  placeholder="https://..."
+                  value={promoForm.image}
+                  onChange={(e) => setPromoForm((prev) => ({ ...prev, image: e.target.value }))}
+                />
+              </label>
 
               <label>
                 Detail

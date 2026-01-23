@@ -106,7 +106,15 @@ function App() {
   const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.toLowerCase()
 
   // ✅ promotions initialized correctly ONCE
-  const [promotions, setPromotions] = useState([])
+  // ✅ promotions initialized from LocalStorage to persist across refreshes
+  const [promotions, setPromotions] = useState(() => {
+    try {
+      const local = localStorage.getItem("kaki_promotions")
+      return local ? JSON.parse(local) : []
+    } catch {
+      return []
+    }
+  })
 
   // Auth-only routes (no header/footer/chatbot/top links)
   const isAuthOnlyRoute = useMemo(() => {
@@ -221,6 +229,28 @@ function App() {
     loadCatalog()
   }, [])
 
+  // Load promotions from DB (sync with table)
+  useEffect(() => {
+    const loadPromotions = async () => {
+      if (!supabase) return
+      try {
+        const { data, error } = await supabase
+          .from("promotions")
+          .select("*")
+          .order("created_at", { ascending: false })
+
+        if (!error && data && data.length > 0) {
+          setPromotions(data)
+          // sync local cache
+          localStorage.setItem("kaki_promotions", JSON.stringify(data))
+        }
+      } catch (err) {
+        console.warn("Error loading promotions from DB", err)
+      }
+    }
+    loadPromotions()
+  }, [])
+
   const navigate = (path) => {
     const appPath = path.startsWith("/") ? path : `/${path}`
     const targetPath = appendBase(appPath)
@@ -326,9 +356,26 @@ function App() {
   }
 
   // promotions update
-  const handlePromotionsUpdate = useCallback((nextPromotions) => {
+  const handlePromotionsUpdate = useCallback(async (nextPromotions) => {
     if (!Array.isArray(nextPromotions)) return
     setPromotions(nextPromotions)
+
+    // 1. Save to LocalStorage (Immediate persistence)
+    try {
+      localStorage.setItem("kaki_promotions", JSON.stringify(nextPromotions))
+    } catch (err) {
+      console.warn("Failed to save promotions locally:", err)
+    }
+
+    // 2. Attempt Sync to Supabase (Best effort)
+    if (supabase) {
+      try {
+        const { error } = await supabase.from("promotions").upsert(nextPromotions)
+        if (error) console.warn("Promotions table sync failed (table might be missing):", error.message)
+      } catch (err) {
+        // ignore errors if table doesn't exist
+      }
+    }
   }, [])
 
   // ---------------- CART ----------------
@@ -719,7 +766,7 @@ function App() {
       id: product.id,
       name: product.name,
       slug,
-      description: product.description,
+      description: product.description || product.desc,
       category: product.category,
       image: product.image,
       price: Number(product.price) || 0,
@@ -931,7 +978,8 @@ function App() {
 
   const handleOpenAdminProduct = useCallback(
     (product) => {
-      const hint = product?.name || product?.slug || ""
+      // product can be an object or a string command (e.g. "TAB:promotions")
+      const hint = typeof product === "string" ? product : (product?.name || product?.slug || "")
       setAdminProductQuery(hint)
       navigate("/admin")
     },
@@ -1156,7 +1204,7 @@ function App() {
 
 
     const activePromotions =
-      catalogSource === "supabase" && catalogPromotions.length ? catalogPromotions : promotions
+      promotions && promotions.length > 0 ? promotions : catalogPromotions
     const hasSearch =
       (searchTerm || "").trim().length > 0 ||
       (recipeSuggestion && recipeSuggestion.ingredients?.length > 0)
@@ -1357,6 +1405,7 @@ function App() {
           onUpdateCartQuantity={updateCartQuantity}
           onLogout={handleLogout}
           onOpenAdminProduct={handleOpenAdminProduct}
+          onProductUpdate={handleProductUpsert}
           onRecipeSuggestion={setRecipeSuggestion}
           promotions={promotions}
           onCategoryChange={setActiveCategory}
