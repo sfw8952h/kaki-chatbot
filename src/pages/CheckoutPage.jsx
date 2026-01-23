@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react"
 import "./CheckoutPage.css"
 import { QRCodeCanvas } from "qrcode.react"
+import { getSupabaseClient } from "../lib/supabaseClient"
 
 const SHIPPING_FEE = 4.9
 
@@ -32,6 +33,43 @@ function CheckoutPage({
   useEffect(() => {
     if (!user) onNavigate?.("/login")
   }, [user, onNavigate])
+
+  // Pre-fill address from profile
+  useEffect(() => {
+    if (!user) return
+
+    const loadDefaultAddress = async () => {
+      try {
+        const supabase = getSupabaseClient()
+        // Try default first
+        let { data } = await supabase
+          .from("addresses")
+          .select("details, instructions")
+          .eq("user_id", user.id)
+          .eq("is_default", true)
+          .maybeSingle()
+
+        if (!data) {
+          // Fallback
+          const { data: anyData } = await supabase
+            .from("addresses")
+            .select("details, instructions")
+            .eq("user_id", user.id)
+            .limit(1)
+            .maybeSingle()
+          data = anyData
+        }
+
+        if (data) {
+          if (data.details) setAddress(data.details)
+          if (data.instructions) setNotes(data.instructions)
+        }
+      } catch (err) {
+        console.warn("Failed to load checkout address", err)
+      }
+    }
+    loadDefaultAddress()
+  }, [user])
 
   // Reset state when switching payment method
   useEffect(() => {
@@ -400,10 +438,10 @@ function CheckoutPage({
                 !paymentMethod
                   ? "Please select a payment method"
                   : !address.trim()
-                  ? "Please enter delivery address"
-                  : paymentMethod === "card" && !isCardDetailsValid
-                  ? "Please enter valid card details"
-                  : ""
+                    ? "Please enter delivery address"
+                    : paymentMethod === "card" && !isCardDetailsValid
+                      ? "Please enter valid card details"
+                      : ""
               }
             >
               {saving ? "Processing..." : success ? "Order placed!" : "Place Order"}

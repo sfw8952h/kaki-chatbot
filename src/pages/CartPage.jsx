@@ -1,6 +1,7 @@
 // component: CartPage
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import "./Pages.css"
+import { getSupabaseClient } from "../lib/supabaseClient"
 
 function CartPage({
   user,
@@ -15,6 +16,43 @@ function CartPage({
   const formattedSubtotal = Number(subtotal || 0).toFixed(2)
 
   const [error, setError] = useState("")
+  const [deliveryAddress, setDeliveryAddress] = useState(null)
+
+  useEffect(() => {
+    if (!user) {
+      setDeliveryAddress(null)
+      return
+    }
+
+    const loadAddress = async () => {
+      try {
+        const supabase = getSupabaseClient()
+        // Try to get default address first
+        const { data: defData } = await supabase
+          .from("addresses")
+          .select("details")
+          .eq("user_id", user.id)
+          .eq("is_default", true)
+          .maybeSingle()
+
+        if (defData) {
+          setDeliveryAddress(defData.details)
+        } else {
+          // Fallback to any address
+          const { data: anyData } = await supabase
+            .from("addresses")
+            .select("details")
+            .eq("user_id", user.id)
+            .limit(1)
+            .maybeSingle()
+          if (anyData) setDeliveryAddress(anyData.details)
+        }
+      } catch (err) {
+        console.warn("Failed to load cart address", err)
+      }
+    }
+    loadAddress()
+  }, [user])
 
   const goToCheckout = () => {
     if (isEmpty) return
@@ -166,6 +204,15 @@ function CartPage({
             <span>Shipping</span>
             <strong>Calculated later</strong>
           </div>
+
+          {deliveryAddress && (
+            <div className="summary-row" style={{ alignItems: "flex-start", marginTop: 8 }}>
+              <span>Delivery to</span>
+              <strong style={{ textAlign: "right", maxWidth: "140px", fontSize: "0.85rem", lineHeight: "1.3" }}>
+                {deliveryAddress}
+              </strong>
+            </div>
+          )}
 
           <button
             className="primary-btn zoom-on-hover"
