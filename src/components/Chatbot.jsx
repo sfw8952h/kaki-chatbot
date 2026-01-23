@@ -2165,7 +2165,7 @@ function Chatbot({
             <div ref={messagesEndRef} />
 
             <div className="chatbot-suggestions in-chat">
-              {["Find rice", "Make soup", "Track my order", "Show cart"].map((label) => (
+              {["Find rice", "Make fried rice", "Track my order", "Show cart"].map((label) => (
                 <button
                   key={label}
                   className="chatbot-chip"
