@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { FaComments } from "react-icons/fa"
 import "./Chatbot.css"
 
+import { getSupabaseClient } from "../lib/supabaseClient"
+
 const GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 const DEFAULT_ASSISTANT_PROMPT =
@@ -300,6 +302,31 @@ function Chatbot({
   const lastProductContext = useRef({ hint: "", items: [] })
   const lowStockNoticeRef = useRef({ key: "", acknowledged: false })
   const [dimensions, setDimensions] = useState({ width: 480, height: 700 })
+  const [adminStats, setAdminStats] = useState(null)
+
+  useEffect(() => {
+    if (userProfile?.role !== "admin") {
+      setAdminStats(null)
+      return
+    }
+
+    const fetchStats = async () => {
+      try {
+        const supabase = getSupabaseClient()
+        // Fetch complaints count
+        const { count, error } = await supabase
+          .from("complaints")
+          .select("id", { count: "exact", head: true })
+
+        if (!error) {
+          setAdminStats({ complaints: count || 0 })
+        }
+      } catch (err) {
+        console.warn("Failed to fetch admin stats for chatbot", err)
+      }
+    }
+    fetchStats()
+  }, [userProfile])
 
   const handleMouseMove = useCallback((e) => {
     if (!isResizing.current) return
@@ -597,6 +624,13 @@ function Chatbot({
     if (promotionsSummary) sections.push(`Current Promotions:\n${promotionsSummary}`)
     if (userProfile) {
       sections.push(`Current User Context:\nName: ${userProfile.full_name || "Guest"}\nRole: ${userProfile.role || "customer"}\nTier: ${userProfile.membership_tier || "Member"}\nPoints: ${userProfile.membership_points || 0}`)
+
+      if (userProfile.role === "admin") {
+        const totalSkus = catalog.length
+        const totalUnits = catalog.reduce((sum, p) => sum + (Number(p.onlineStock) || Number(p.stock) || 0), 0)
+        const complaintsCount = adminStats?.complaints ?? "Unknown"
+        sections.push(`[ADMIN INTERNAL STATS]:\nTotal SKUs: ${totalSkus}\nTotal Units On Hand: ${totalUnits}\nTotal Complaints: ${complaintsCount}`)
+      }
     }
     return sections.join("\n\n")
   }, [catalogSummary, locationSummary, promotionsSummary, userProfile])
