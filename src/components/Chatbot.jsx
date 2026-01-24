@@ -1274,14 +1274,37 @@ function Chatbot({
           return `I've added ${validQuantity} units of stock to ${updatedCount} low-stock items. Inventory updated.`
         }
 
-        // Add proper navigation for admin tasks
+        // 1. Feedback
+        if (/(check|see|view|open).*(customer\s+feedback|feedback|complaints)/i.test(normalized)) {
+          window.activeAdminTab = "support"
+          safeNavigate("/admin")
+          return "Opening the Customer Feedback tab in Admin Dashboard."
+        }
+
+        // 2. Add product
+        if (/(add|create|new).*(product|item)/i.test(normalized)) {
+          window.activeAdminTab = "add"
+          safeNavigate("/admin")
+          return "Opening the Products tab to add a new item."
+        }
+
+        // 3. Inventory
+        if (/(see|check|view|open).*(inventory|stock)/i.test(normalized)) {
+          window.activeAdminTab = "inventory"
+          safeNavigate("/admin")
+          return "Opening the Inventory tab in Admin Dashboard."
+        }
+
+        // Add proper navigation for admin tasks (Existing)
         if (/(add|create|new|make).*(promotion|promo|deal|offer)/i.test(normalized)) {
-          onOpenAdminProduct?.("TAB:promotions")
+          window.activeAdminTab = "promotions"
+          safeNavigate("/admin")
           return "Opening the Promotions tab in Admin Center. You can add your new deal there."
         }
 
         if (/(change|update|edit|modify).*(store|location|hours|branch)/i.test(normalized)) {
-          onOpenAdminProduct?.("TAB:stores")
+          window.activeAdminTab = "stores"
+          safeNavigate("/admin")
           return "Opening the Store Hours tab in Admin Center."
         }
       }

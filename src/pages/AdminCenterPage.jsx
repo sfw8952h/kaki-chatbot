@@ -109,6 +109,14 @@ function AdminCenterPage({
 
   const [activeTab, setActiveTab] = useState("dashboard")
 
+  // Handle incoming tab requests
+  useEffect(() => {
+    if (window.activeAdminTab) {
+      setActiveTab(window.activeAdminTab)
+      window.activeAdminTab = null
+    }
+  })
+
   // Fetch pending proposals from DB
   useEffect(() => {
     let cancelled = false
