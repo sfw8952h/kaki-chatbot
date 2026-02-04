@@ -1147,6 +1147,7 @@ function App() {
           promotions={promotions}
           onPromotionsUpdate={handlePromotionsUpdate}
           adminQuery={adminProductQuery}
+          onNavigate={navigate}
         />
       )
     }

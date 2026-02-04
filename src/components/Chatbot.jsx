@@ -629,7 +629,7 @@ function Chatbot({
         items: lowStock.slice(0, 6).map((product) => ({
           product,
           purchasedBefore: false,
-          actions: [{ label: "Restock via Chat", type: "admin" }], // Differentiate label if desired
+          actions: [{ label: "Manage in Admin", type: "admin" }], // Differentiate label if desired
         })),
       })
     }
@@ -1249,29 +1249,11 @@ function Chatbot({
 
       // ---------------- ADMIN COMMANDS ----------------
       if (isAdmin) {
-        // Add stock to low stock items
-        if (/(add|update|restock|fill).*(stock)/i.test(normalized) && /(low|items|products|inventory)/i.test(normalized)) {
-          if (!Array.isArray(catalog)) return "I can't access the catalog right now."
-          // find items <= LOW_STOCK_THRESHOLD (5)
-          const lowStockItems = catalog.filter((p) => getProductStock(p) <= LOW_STOCK_THRESHOLD)
-
-          if (lowStockItems.length === 0) {
-            return `All items are well stocked right now (above ${LOW_STOCK_THRESHOLD} units).`
-          }
-
-          // Try to allow generic "add stock" (default 20) or specific "add 5 stock"
-          const amountMatch = normalized.match(/(?:add|update|fill)\s+(\d+)/i) || normalized.match(/(\d+)\s+stock/i)
-          const validQuantity = amountMatch ? parseInt(amountMatch[1], 10) : 20
-
-          let updatedCount = 0
-          lowStockItems.forEach((p) => {
-            const current = getProductStock(p)
-            const nextStock = current + validQuantity
-            onProductUpdate({ ...p, stock: nextStock })
-            updatedCount++
-          })
-
-          return `I've added ${validQuantity} units of stock to ${updatedCount} low-stock items. Inventory updated.`
+        // Redirect to Products for stock management
+        if (/(add|update|restock|fill).*(stock)/i.test(normalized)) {
+          window.activeAdminTab = "products"
+          safeNavigate("/admin")
+          return "Opening the Products page. You can manage stock levels there."
         }
 
         // 1. Feedback
