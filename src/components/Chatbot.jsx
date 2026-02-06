@@ -90,6 +90,8 @@ const STATIC_NAV_TARGETS = [
   { label: "Home", path: "/" },
   { label: "Sign up", path: "/signup" },
   { label: "Log in", path: "/login" },
+  { label: "Supplier sign in", path: "/supplier-login" },
+  { label: "Supplier sign up", path: "/supplier-signup" },
   { label: "Cart", path: "/cart" },
   { label: "Checkout", path: "/checkout" },
   { label: "Admin Center", path: "/admin" },
@@ -1219,6 +1221,16 @@ function Chatbot({
       const isActiveUser = userProfile != null
       const isAdmin = userProfile?.role === "admin"
       const isSupplier = userProfile?.role === "supplier"
+
+      if (/(login|log\s+in|sign\s+in).*(supplier)/.test(normalized) || /(supplier).*(login|log\s+in|sign\s+in)/.test(normalized)) {
+        safeNavigate("/supplier-login")
+        return "Opening the supplier sign-in page."
+      }
+
+      if (/(login|log\s+in|sign\s+in)/.test(normalized)) {
+        safeNavigate("/login")
+        return "Opening the login page."
+      }
 
       // ---------------- SUPPLIER COMMANDS ----------------
       if (isSupplier) {
