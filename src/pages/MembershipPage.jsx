@@ -14,6 +14,7 @@ function MembershipPage({ user, profile, onNavigate = () => { }, onMembershipCha
 
   const activeTier = useMemo(() => formatTier(profile?.membership_tier), [profile?.membership_tier])
   const points = Number(profile?.membership_points ?? 0)
+  const isAdmin = String(profile?.role || "").trim().toLowerCase() === "admin"
 
   const nextTier = useMemo(() => {
     const index = tiers.findIndex((tier) => tier.id === activeTier.id)
@@ -31,6 +32,10 @@ function MembershipPage({ user, profile, onNavigate = () => { }, onMembershipCha
     if (!user) {
       setError("Please sign in to save your membership tier.")
       onNavigate?.("/login")
+      return
+    }
+    if (!isAdmin) {
+      setError("Only admins can change membership tiers.")
       return
     }
     if (!onMembershipChange || tierId === activeTier.id || updatingTier) return
@@ -176,14 +181,16 @@ function MembershipPage({ user, profile, onNavigate = () => { }, onMembershipCha
                       ))}
                     </ul>
 
-                    <button
-                      className={`tier-action-btn ${isActive ? 'active' : ''}`}
-                      type="button"
-                      disabled={!user || isActive || Boolean(updatingTier)}
-                      onClick={() => handleSelectTier(tier.id)}
-                    >
-                      {isActive ? "Current Plan" : isUpdatingThis ? "Switching..." : "Switch to Tier"}
-                    </button>
+                    {isAdmin && (
+                      <button
+                        className={`tier-action-btn ${isActive ? 'active' : ''}`}
+                        type="button"
+                        disabled={!user || isActive || Boolean(updatingTier)}
+                        onClick={() => handleSelectTier(tier.id)}
+                      >
+                        {isActive ? "Current Plan" : isUpdatingThis ? "Switching..." : "Switch to Tier"}
+                      </button>
+                    )}
                   </article>
                 )
               })}
@@ -230,4 +237,3 @@ function MembershipPage({ user, profile, onNavigate = () => { }, onMembershipCha
 }
 
 export default MembershipPage
-
