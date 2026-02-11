@@ -65,7 +65,7 @@ const normaliseOrder = (order) => {
       order.address ||
       order.default_address ||
       order.address_label ||
-      "Address pending",
+      "",
   }
 }
 
@@ -260,7 +260,9 @@ function OrderTrackingPage({ user, onNavigate, orders = [] }) {
                     <div className="order-meta-info">
                       <div className="meta-item">
                         <span className="meta-item-label">Delivery To</span>
-                        <span className="meta-item-value">{order.address}</span>
+                        <span className="meta-item-value">
+                          {order.address || defaultAddress?.details || "Address pending"}
+                        </span>
                       </div>
                       <div className="meta-item" style={{ textAlign: 'right' }}>
                         <span className="meta-item-label">Estimated Delivery</span>

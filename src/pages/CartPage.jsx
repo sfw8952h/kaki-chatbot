@@ -1,7 +1,6 @@
 // component: CartPage
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import "./Pages.css"
-import { getSupabaseClient } from "../lib/supabaseClient"
 
 function CartPage({
   user,
@@ -11,68 +10,57 @@ function CartPage({
   subtotal = 0,
   onRemove,
   onQuantityChange,
+  onCheckout, // must be async and save to supabase
 }) {
-  const isEmpty = items.length === 0
-  const formattedSubtotal = Number(subtotal || 0).toFixed(2)
+  const isEmpty = items.length === 0 // if cart is empty
+  const formattedSubtotal = subtotal.toFixed(2)
 
+  const [orderSuccess, setOrderSuccess] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
-  const [deliveryAddress, setDeliveryAddress] = useState(null)
 
   useEffect(() => {
-    if (!user) {
-      setDeliveryAddress(null)
-      return
-    }
+    if (!orderSuccess) return undefined
+    const timer = setTimeout(() => {
+      setOrderSuccess(false)
+      onNavigate?.("/history")
+    }, 1400)
+    return () => clearTimeout(timer)
+  }, [orderSuccess, onNavigate])
 
-    const loadAddress = async () => {
-      try {
-        const supabase = getSupabaseClient()
-        // Try to get default address first
-        const { data: defData } = await supabase
-          .from("addresses")
-          .select("details")
-          .eq("user_id", user.id)
-          .eq("is_default", true)
-          .maybeSingle()
-
-        if (defData) {
-          setDeliveryAddress(defData.details)
-        } else {
-          // Fallback to any address
-          const { data: anyData } = await supabase
-            .from("addresses")
-            .select("details")
-            .eq("user_id", user.id)
-            .limit(1)
-            .maybeSingle()
-          if (anyData) setDeliveryAddress(anyData.details)
-        }
-      } catch (err) {
-        console.warn("Failed to load cart address", err)
-      }
-    }
-    loadAddress()
-  }, [user])
-
-  const goToCheckout = () => {
-    if (isEmpty) return
-
-    // require login before checkout
-    if (!user) {
-      setError("Please sign in to continue checkout.")
-      onNavigate?.("/login")
-      return
-    }
-
-    // product_id must exist for every cart item (uuid from products table)
-    const missing = (items || []).find((x) => !x?.product_id)
-    if (missing) {
-      setError("Some cart items are missing product_id. Please refresh and try again.")
-      return
-    }
-
+  const handleCheckoutClick = async () => {
+    if (isEmpty || orderSuccess || saving) return
     setError("")
-    onNavigate?.("/checkout")
+    setSaving(true)
+
+    try {
+      if (!user) {
+        setError("Please sign in to place an order.")
+        onNavigate?.("/login")
+        return
+      }
+
+      // IMPORTANT:
+      // - total should be a number (not string)
+      // - await onCheckout so we only redirect after supabase insert succeeds
+        await onCheckout?.({
+          items: items.map((item) => ({
+            slug: item.slug,
+            product_id: item.id ?? null, // optional if you have product uuid
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+          })),
+          total: Number(formattedSubtotal),
+        })
+
+      setOrderSuccess(true)
+    } catch (e) {
+      console.error(e)
+      setError(e?.message || "Checkout failed. Please try again.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -90,13 +78,8 @@ function CartPage({
                 <button className="ghost-btn" type="button" onClick={() => onNavigate?.("/")}>
                   Keep shopping
                 </button>
-                <button
-                  className="primary-btn"
-                  type="button"
-                  onClick={goToCheckout}
-                  disabled={isEmpty}
-                >
-                  Proceed to checkout
+                <button className="primary-btn" type="button" onClick={handleCheckoutClick} disabled={isEmpty || orderSuccess || saving}>
+                  {saving ? "Placing order..." : "Proceed to checkout"} 
                 </button>
               </div>
             </div>
@@ -120,72 +103,54 @@ function CartPage({
             {isEmpty ? (
               <div className="empty-cart">
                 <p>Your cart is empty. Add your favourite produce to get started.</p>
-                <button
-                  className="primary-btn zoom-on-hover"
-                  type="button"
-                  onClick={() => onNavigate?.("/")}
-                >
+                <button className="primary-btn zoom-on-hover" type="button" onClick={() => onNavigate?.("/")}>
                   Browse products
                 </button>
               </div>
             ) : (
-              items.map((item) => {
-                const maxStock = Number(item.onlineStock ?? item.stock ?? item.maxStock ?? Infinity)
-                const reachedMax = Number.isFinite(maxStock) && item.quantity >= maxStock
-
-                return (
-                  <article key={item.slug} className="cart-item">
-                    <div className="cart-item-main">
-                      {item.thumbnail && (
-                        <img src={item.thumbnail} alt={item.name} className="cart-thumb" />
-                      )}
-                      <div>
-                        <strong>{item.name}</strong>
-                        <p>${Number(item.price || 0).toFixed(2)} each</p>
-                      </div>
-                      <span className="cart-line-total">
-                        ${(Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2)}
-                      </span>
+              items.map((item) => (
+                <article key={item.slug} className="cart-item">
+                  <div className="cart-item-main">
+                    {item.thumbnail && <img src={item.thumbnail} alt={item.name} className="cart-thumb" />}
+                    <div>
+                      <strong>{item.name}</strong>
+                      <p>${item.price.toFixed(2)} each</p>
                     </div>
+                    <span className="cart-line-total">${(item.price * item.quantity).toFixed(2)}</span>
+                  </div>
 
-                    <div className="cart-item-actions">
-                      <div className="qty-group">
-                        <button
-                          type="button"
-                          onClick={() => onQuantityChange?.(item.slug, item.quantity - 1)}
-                          disabled={item.quantity <= 1}
-                          aria-label="Decrease quantity"
-                        >
-                          -
-                        </button>
-
-                        <span>{item.quantity}</span>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (reachedMax) return
-                            onQuantityChange?.(item.slug, item.quantity + 1)
-                          }}
-                          disabled={reachedMax}
-                          aria-label="Increase quantity"
-                          title={reachedMax ? "Reached max stock" : ""}
-                        >
-                          +
-                        </button>
-                      </div>
-
+                  <div className="cart-item-actions">
+                    <div className="qty-group">
                       <button
-                        className="ghost-btn danger"
                         type="button"
-                        onClick={() => onRemove?.(item.slug)}
+                        onClick={() => onQuantityChange?.(item.slug, item.quantity - 1)}
+                        disabled={item.quantity <= 1 || saving || orderSuccess}
+                        aria-label="Decrease quantity"
                       >
-                        Remove
+                        -
+                      </button>
+                      <span>{item.quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => onQuantityChange?.(item.slug, item.quantity + 1)}
+                        disabled={saving || orderSuccess}
+                        aria-label="Increase quantity"
+                      >
+                        +
                       </button>
                     </div>
-                  </article>
-                )
-              })
+
+                    <button
+                      className="ghost-btn danger"
+                      type="button"
+                      onClick={() => onRemove?.(item.slug)}
+                      disabled={saving || orderSuccess}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </article>
+              ))
             )}
           </div>
         </div>
@@ -205,23 +170,16 @@ function CartPage({
             <strong>Calculated later</strong>
           </div>
 
-          {deliveryAddress && (
-            <div className="summary-row" style={{ alignItems: "flex-start", marginTop: 8 }}>
-              <span>Delivery to</span>
-              <strong style={{ textAlign: "right", maxWidth: "140px", fontSize: "0.85rem", lineHeight: "1.3" }}>
-                {deliveryAddress}
-              </strong>
-            </div>
-          )}
-
           <button
             className="primary-btn zoom-on-hover"
-            disabled={isEmpty}
+            disabled={isEmpty || orderSuccess || saving}
             type="button"
-            onClick={goToCheckout}
+            onClick={handleCheckoutClick}
           >
-            {isEmpty ? "Add items to checkout" : "Checkout securely"}
+            {isEmpty ? "Add items to checkout" : saving ? "Placing order..." : "Checkout securely"}
           </button>
+
+          {orderSuccess && <p className="success-text">Order success! Redirecting you to your recent orders…</p>}
         </aside>
       </div>
     </section>

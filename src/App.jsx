@@ -607,6 +607,7 @@ function App() {
           total,
           status,
           placed_at,
+          delivery_address,
           order_items (
             id,
             order_id,

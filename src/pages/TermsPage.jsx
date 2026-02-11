@@ -1,6 +1,6 @@
 // component: TermsPage
 import "./Pages.css"
-
+// mostly ui so far nothing yet to do
 function TermsPage() {
   return (
     <section className="page-panel">
