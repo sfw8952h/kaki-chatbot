@@ -209,6 +209,20 @@ function ProfilePage({ onNavigate, user, profile, onProfileUpdated, onLogout, or
       })
       if (insertError) throw insertError
 
+      if (shouldBeDefault) {
+        try {
+          await supabase.auth.updateUser({
+            data: {
+              address_label: addressForm.label.trim(),
+              address: addressForm.details.trim(),
+              instructions: addressForm.instructions.trim() || "",
+            },
+          })
+        } catch (metaErr) {
+          console.warn("Update user metadata address failed:", metaErr)
+        }
+      }
+
       setAddressForm({ label: "Home", details: "", instructions: "", isDefault: false })
       setAddressFormStatus("Address saved.")
       await refreshAddresses()
@@ -256,6 +270,22 @@ function ProfilePage({ onNavigate, user, profile, onProfileUpdated, onLogout, or
         .eq("user_id", user.id)
 
       if (defaultError) throw defaultError
+
+      const selected = addresses.find((entry) => entry.id === addressId)
+      if (selected) {
+        try {
+          await supabase.auth.updateUser({
+            data: {
+              address_label: selected.label || "Default",
+              address: selected.details || "",
+              instructions: selected.instructions || "",
+            },
+          })
+        } catch (metaErr) {
+          console.warn("Update user metadata address failed:", metaErr)
+        }
+      }
+
       await refreshAddresses()
     } catch (err) {
       console.error("Default address error:", err)

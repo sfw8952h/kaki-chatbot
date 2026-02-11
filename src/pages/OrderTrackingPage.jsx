@@ -25,8 +25,6 @@ const resolveFallbackAddress = (user) => {
   return {
     label: meta.address_label || "Preferred",
     details: meta.address,
-    city: meta.city || "",
-    postal: meta.postal_code || "",
     instructions: meta.instructions || "",
   }
 }
@@ -103,7 +101,7 @@ function OrderTrackingPage({ user, onNavigate, orders = [] }) {
         await ensureSession()
         const { data, error } = await supabase
           .from("addresses")
-          .select("label, details, instructions, city, postal_code, is_default")
+          .select("label, details, instructions, is_default")
           .eq("user_id", user.id)
           .order("is_default", { ascending: false })
           .limit(1)
@@ -113,8 +111,6 @@ function OrderTrackingPage({ user, onNavigate, orders = [] }) {
           setDefaultAddress({
             label: entry.label || resolveFallbackAddress(user)?.label || "Default",
             details: entry.details,
-            city: entry.city || "",
-            postal: entry.postal_code || "",
             instructions: entry.instructions || "",
           })
         } else {
@@ -179,8 +175,7 @@ function OrderTrackingPage({ user, onNavigate, orders = [] }) {
             <div className="address-content">
               <span className="address-label">{defaultAddress.label}</span>
               <p className="address-details">
-                {defaultAddress.details}<br />
-                {defaultAddress.city} {defaultAddress.postal}
+                {defaultAddress.details}
               </p>
               {defaultAddress.instructions && (
                 <p className="address-notes">
@@ -192,6 +187,11 @@ function OrderTrackingPage({ user, onNavigate, orders = [] }) {
             <div className="address-content">
               <p className="muted">No primary address set in your profile.</p>
             </div>
+          )}
+          {!!addressError && (
+            <p className="muted" style={{ marginTop: 12 }}>
+              Address sync issue: {addressError}
+            </p>
           )}
           <button className="card-action-btn">
             <FiEdit3 /> Manage Locations
